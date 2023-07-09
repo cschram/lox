@@ -1,0 +1,14 @@
+[package]
+name = "lox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.19"
+simple_logger = "4.2.0"
+thiserror = "1.0.43"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
