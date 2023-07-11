@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 log = "0.4.19"
+mock-logger = "0.1.1"
 simple_logger = "4.2.0"
 thiserror = "1.0.43"
 

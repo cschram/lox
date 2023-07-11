@@ -1,0 +1,23 @@
+(* Lox language definition reference. *)
+
+(* Expressions *)
+expression =
+    equality ;
+equality =
+    comparison, { ( "!=" | "==" ), comparison } ;
+comparison =
+    term, { ( ">" | ">=" | "<" | "<=" ), term } ;
+term =
+    factor, { ( "-" | "+" ), factor } ;
+factor =
+    unary, { ( "/" | "*" ), unary } ;
+unary =
+    ( "!" | "-" ), unary | primary ;
+primary =
+    number | string | "true" | "false" | "nil" | "(", expression, ")" ;
+
+(* Special terminals *)
+number =
+    ? double precision floating-point ? ;
+string =
+    ? unicode string ? ;

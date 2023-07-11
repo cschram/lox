@@ -98,8 +98,18 @@ name = "lox"
 version = "0.1.0"
 dependencies = [
  "log",
+ "mock-logger",
  "simple_logger",
  "thiserror",
+]
+
+[[package]]
+name = "mock-logger"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e798c4a1eed57c9ba6a72e0cc10400a14739b70ea0338b1499c92e2c3e560ef"
+dependencies = [
+ "log",
 ]
 
 [[package]]

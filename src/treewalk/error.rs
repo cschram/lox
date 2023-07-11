@@ -10,10 +10,7 @@ pub struct SyntaxError {
 
 impl SyntaxError {
     pub fn new(message: String, line: u32) -> Self {
-        Self {
-            message,
-            line,
-        }
+        Self { message, line }
     }
 }
 

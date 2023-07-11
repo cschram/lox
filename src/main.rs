@@ -7,6 +7,6 @@ fn main() -> Result<(), LoxError> {
 
     let mut lox = Lox::new();
     lox.run_file("scripts/helloworld.lox")?;
-    
+
     Ok(())
 }

@@ -1,8 +1,12 @@
-use std::{fmt::Display, io::BufRead};
+use std::{
+    fmt::Display,
+    io::BufRead,
+    mem::replace,
+};
 
 use super::error::*;
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum TokenKind {
     LeftParen,
     RightParen,
@@ -62,7 +66,12 @@ pub struct Token {
 }
 
 impl Token {
-    fn new(kind: TokenKind, lexeme: Option<String>, literal: Option<Literal>, line: u32) -> Self {
+    pub fn new(
+        kind: TokenKind,
+        lexeme: Option<String>,
+        literal: Option<Literal>,
+        line: u32,
+    ) -> Self {
         Self {
             kind,
             lexeme,
@@ -101,57 +110,32 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    pub fn from_buf(source: &mut dyn BufRead) -> Self {
-        Self {
-            source: source
-                .lines()
-                .flat_map(|l| {
-                    let mut line = l.unwrap().chars().collect::<Vec<char>>();
-                    line.push('\n');
-                    line
-                })
-                .collect(),
-            tokens: vec![],
-            errors: vec![],
-            line: 0,
-            start: 0,
-            current: 0,
-        }
-    }
-
-    pub fn from_str(source: &str) -> Self {
-        Self {
+    // Do a full scan of the source.
+    pub fn scan(source: &str) -> ScanResult {
+        let mut scanner = Self {
             source: source.chars().collect(),
             tokens: vec![],
             errors: vec![],
             line: 0,
             start: 0,
-            current: 0,
+            current: 0,   
+        };
+        while !scanner.id_at_end() {
+            scanner.start = scanner.current;
+            scanner.scan_token();
         }
-    }
-
-    // Do a full scan of the source.
-    pub fn scan(&mut self) -> ScanResult {
-        while !self.at_end() {
-            self.start = self.current;
-            self.scan_token();
-        }
-        self.tokens.push(Token::new(
-            TokenKind::Eof,
-            None,
-            None,
-            self.line as u32 + 1,
-        ));
+        scanner.tokens
+            .push(Token::new(TokenKind::Eof, None, None, scanner.line as u32 + 1));
         ScanResult {
-            tokens: self.tokens.clone(),
-            errors: self.errors.clone(),
+            tokens: replace(&mut scanner.tokens, vec![]),
+            errors: replace(&mut scanner.errors, vec![]),
         }
     }
 
     // Scan a single token.
     fn scan_token(&mut self) {
         match self.advance() {
-            ' ' | '\r' | '\t' => {},
+            ' ' | '\r' | '\t' => {}
             '\n' => self.line += 1,
             '(' => self.add_token(TokenKind::LeftParen, None),
             ')' => self.add_token(TokenKind::RightParen, None),
@@ -169,50 +153,50 @@ impl Scanner {
                 } else {
                     self.add_token(TokenKind::Bang, None);
                 }
-            },
+            }
             '=' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::EqualEqual, None);
                 } else {
                     self.add_token(TokenKind::Equal, None);
                 }
-            },
+            }
             '<' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::LessEqual, None);
                 } else {
                     self.add_token(TokenKind::Less, None);
                 }
-            },
+            }
             '>' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::GreaterEqual, None);
                 } else {
                     self.add_token(TokenKind::Greater, None);
                 }
-            },
+            }
             '/' => {
                 if *self.peek() == '/' {
                     self.scan_comment();
                 } else {
                     self.add_token(TokenKind::Slash, None);
                 }
-            },
+            }
             '"' => self.scan_string(),
             '0'..='9' => self.scan_number(),
             _ => {
                 if self.peek().is_alphabetic() {
-                     self.scan_identifier();
+                    self.scan_identifier();
                 } else {
-                    self.syntax_error(format!("Unknown character \"{}\"", self.lexeme()));
+                    self.add_syntax_error(format!("Unknown character \"{}\"", self.get_lexeme()));
                 }
-            },
+            }
         }
     }
 
     // Ignore a comment line and advance to the next line.
     fn scan_comment(&mut self) {
-        while *self.peek() != '\n' && !self.at_end() {
+        while *self.peek() != '\n' && !self.id_at_end() {
             self.advance();
         }
     }
@@ -220,17 +204,17 @@ impl Scanner {
     // Scan a string token.
     fn scan_string(&mut self) {
         let mut line = self.line;
-        while *self.peek() != '"' && !self.at_end() {
+        while *self.peek() != '"' && !self.id_at_end() {
             if *self.peek() == '\n' {
                 line += 1;
             }
             self.advance();
         }
-        if self.at_end() {
-            self.syntax_error("Unterminated string".to_owned());
+        if self.id_at_end() {
+            self.add_syntax_error("Unterminated string".to_owned());
         } else {
             self.advance();
-            let s = self.lexeme();
+            let s = self.get_lexeme();
             self.tokens.push(Token::new(
                 TokenKind::String,
                 Some(s.clone()),
@@ -243,10 +227,10 @@ impl Scanner {
 
     // Scan a number token.
     fn scan_number(&mut self) {
-        while self.is_digit() && !self.at_end() {
+        while self.is_digit() && !self.id_at_end() {
             self.advance();
         }
-        let s = self.lexeme();
+        let s = self.get_lexeme();
         let num = s.parse::<f64>().expect("Invalid number");
         self.tokens.push(Token::new(
             TokenKind::Number,
@@ -258,10 +242,10 @@ impl Scanner {
 
     // Scan an identifier
     fn scan_identifier(&mut self) {
-        while self.peek().is_alphanumeric() && !self.at_end() {
+        while self.peek().is_alphanumeric() && !self.id_at_end() {
             self.advance();
         }
-        let lexeme = self.lexeme();
+        let lexeme = self.get_lexeme();
         let kind = match lexeme.as_str() {
             "and" => TokenKind::And,
             "class" => TokenKind::Class,
@@ -293,7 +277,7 @@ impl Scanner {
     fn add_token(&mut self, kind: TokenKind, literal: Option<Literal>) {
         self.tokens.push(Token::new(
             kind,
-            Some(self.lexeme()),
+            Some(self.get_lexeme()),
             literal,
             self.line as u32,
         ));
@@ -343,20 +327,18 @@ impl Scanner {
     }
 
     // Add a syntax error.
-    fn syntax_error(&mut self, message: String) {
-        self.errors.push(SyntaxError::new(
-            message,
-            self.line as u32,
-        ));
+    fn add_syntax_error(&mut self, message: String) {
+        self.errors
+            .push(SyntaxError::new(message, self.line as u32));
     }
 
     // Generate the current token lexeme.
-    fn lexeme(&self) -> String {
+    fn get_lexeme(&self) -> String {
         self.source[self.start..self.current].iter().collect()
     }
 
     // Check if we've reached the end of the source.
-    fn at_end(&self) -> bool {
+    fn id_at_end(&self) -> bool {
         self.current >= self.source.len()
     }
 }
