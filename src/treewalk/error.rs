@@ -26,4 +26,8 @@ pub enum LoxError {
     IOError(#[from] std::io::Error),
     #[error("{0}")]
     SyntaxError(SyntaxError),
+    #[error("Runtime Error: {0}")]
+    RuntimeError(String),
 }
+
+pub type LoxResult<T = ()> = Result<T, LoxError>;

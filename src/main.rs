@@ -6,7 +6,7 @@ fn main() -> Result<(), LoxError> {
     simple_logger::init().unwrap();
 
     let mut lox = Lox::new();
-    lox.run_file("scripts/helloworld.lox")?;
+    lox.exec("1 + (3.5 / 1.2)")?;
 
     Ok(())
 }

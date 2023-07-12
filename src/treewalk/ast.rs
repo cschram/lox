@@ -1,5 +1,4 @@
-use super::scanner::Token;
-use log::info;
+use super::scanner::{Literal, Token};
 use std::fmt::Display;
 
 #[derive(Debug)]
@@ -25,7 +24,6 @@ impl Expr {
     pub fn literal(value: Token) -> Self {
         Self::Literal { value }
     }
-    
 
     pub fn unary(operator: Token, right: Box<Expr>) -> Self {
         Self::Unary { operator, right }
@@ -47,9 +45,7 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Literal { value } => {
-                write!(f, "{}", value.lexeme.clone().unwrap_or("".to_owned()),)
-            }
+            Expr::Literal { value } => write!(f, "{}", value.lexeme.as_ref().unwrap()),
             Expr::Unary { operator, right } => {
                 write!(
                     f,
@@ -72,7 +68,7 @@ impl Display for Expr {
                 )
             }
             Expr::Grouping { inner } => {
-                write!(f, "({})", inner.to_string(),)
+                write!(f, "{}", inner.to_string(),)
             }
         }
     }
@@ -84,7 +80,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_expr_to_string() {
+    fn expr_to_string() {
         let expr = Expr::binary(
             Token::new(TokenKind::Plus, Some("+".into()), None, 0),
             Box::new(Expr::unary(

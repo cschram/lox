@@ -1,8 +1,4 @@
-use std::{
-    fmt::Display,
-    io::BufRead,
-    mem::replace,
-};
+use std::{fmt::Display, mem::replace};
 
 use super::error::*;
 
@@ -55,6 +51,17 @@ pub enum Literal {
     String(String),
     True,
     False,
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Number(num) => write!(f, "{}", num),
+            Self::String(s) => write!(f, "{}", s),
+            Self::True => write!(f, "true"),
+            Self::False => write!(f, "false"),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -118,14 +125,18 @@ impl Scanner {
             errors: vec![],
             line: 0,
             start: 0,
-            current: 0,   
+            current: 0,
         };
         while !scanner.id_at_end() {
             scanner.start = scanner.current;
             scanner.scan_token();
         }
-        scanner.tokens
-            .push(Token::new(TokenKind::Eof, None, None, scanner.line as u32 + 1));
+        scanner.tokens.push(Token::new(
+            TokenKind::Eof,
+            None,
+            None,
+            scanner.line as u32 + 1,
+        ));
         ScanResult {
             tokens: replace(&mut scanner.tokens, vec![]),
             errors: replace(&mut scanner.errors, vec![]),
@@ -150,6 +161,7 @@ impl Scanner {
             '!' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::BangEqual, None);
+                    self.advance();
                 } else {
                     self.add_token(TokenKind::Bang, None);
                 }
@@ -157,6 +169,7 @@ impl Scanner {
             '=' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::EqualEqual, None);
+                    self.advance();
                 } else {
                     self.add_token(TokenKind::Equal, None);
                 }
@@ -164,6 +177,7 @@ impl Scanner {
             '<' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::LessEqual, None);
+                    self.advance();
                 } else {
                     self.add_token(TokenKind::Less, None);
                 }
@@ -171,6 +185,7 @@ impl Scanner {
             '>' => {
                 if *self.peek() == '=' {
                     self.add_token(TokenKind::GreaterEqual, None);
+                    self.advance();
                 } else {
                     self.add_token(TokenKind::Greater, None);
                 }
@@ -214,11 +229,12 @@ impl Scanner {
             self.add_syntax_error("Unterminated string".to_owned());
         } else {
             self.advance();
-            let s = self.get_lexeme();
+            let lexeme = self.get_lexeme();
+            let literal = lexeme[1..lexeme.len()-1].to_string();
             self.tokens.push(Token::new(
                 TokenKind::String,
-                Some(s.clone()),
-                Some(Literal::String(s)),
+                Some(lexeme),
+                Some(Literal::String(literal)),
                 self.line as u32,
             ));
             self.line = line;
@@ -227,7 +243,7 @@ impl Scanner {
 
     // Scan a number token.
     fn scan_number(&mut self) {
-        while self.is_digit() && !self.id_at_end() {
+        while !self.id_at_end() && self.is_digit() {
             self.advance();
         }
         let s = self.get_lexeme();
@@ -242,7 +258,7 @@ impl Scanner {
 
     // Scan an identifier
     fn scan_identifier(&mut self) {
-        while self.peek().is_alphanumeric() && !self.id_at_end() {
+        while !self.id_at_end() && self.peek().is_alphanumeric()  {
             self.advance();
         }
         let lexeme = self.get_lexeme();

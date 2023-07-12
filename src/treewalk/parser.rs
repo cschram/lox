@@ -1,44 +1,35 @@
-use super::{
-    ast::*,
-    error::{LoxError, SyntaxError},
-    scanner::*,
-};
+use super::{ast::*, error::*, scanner::*};
 
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
-    errors: Vec<LoxError>,
     current: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub fn parse(tokens: &'a Vec<Token>) -> Result<(), LoxError> {
-        let mut _parser = Self {
-            tokens,
-            errors: vec![],
-            current: 0,
-        };
-        Ok(())
+    pub fn parse(tokens: &'a Vec<Token>) -> LoxResult<Expr> {
+        let mut parser = Self { tokens, current: 0 };
+        parser.expression()
     }
 
     /**
      * Expression Terminals
      */
 
-    fn expression(&mut self) -> Option<Expr> {
+    fn expression(&mut self) -> LoxResult<Expr> {
         self.equality()
     }
 
-    fn equality(&mut self) -> Option<Expr> {
+    fn equality(&mut self) -> LoxResult<Expr> {
         let mut left = self.comparison()?;
         while self.match_tokens(&[TokenKind::BangEqual, TokenKind::EqualEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
             left = Expr::binary(operator, Box::new(left), Box::new(right));
         }
-        Some(left)
+        Ok(left)
     }
 
-    fn comparison(&mut self) -> Option<Expr> {
+    fn comparison(&mut self) -> LoxResult<Expr> {
         let mut left = self.term()?;
         while self.match_tokens(&[
             TokenKind::Greater,
@@ -50,40 +41,40 @@ impl<'a> Parser<'a> {
             let right = self.term()?;
             left = Expr::binary(operator, Box::new(left), Box::new(right))
         }
-        Some(left)
+        Ok(left)
     }
 
-    fn term(&mut self) -> Option<Expr> {
+    fn term(&mut self) -> LoxResult<Expr> {
         let mut left = self.factor()?;
         while self.match_tokens(&[TokenKind::Minus, TokenKind::Plus]) {
             let operator = self.previous().clone();
             let right = self.factor()?;
             left = Expr::binary(operator, Box::new(left), Box::new(right));
         }
-        Some(left)
+        Ok(left)
     }
 
-    fn factor(&mut self) -> Option<Expr> {
+    fn factor(&mut self) -> LoxResult<Expr> {
         let mut left = self.unary()?;
         while self.match_tokens(&[TokenKind::Slash, TokenKind::Star]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
             left = Expr::binary(operator, Box::new(left), Box::new(right));
         }
-        Some(left)
+        Ok(left)
     }
 
-    fn unary(&mut self) -> Option<Expr> {
+    fn unary(&mut self) -> LoxResult<Expr> {
         if self.match_tokens(&[TokenKind::Bang, TokenKind::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            Some(Expr::unary(operator, Box::new(right)))
+            Ok(Expr::unary(operator, Box::new(right)))
         } else {
             self.primary()
         }
     }
 
-    fn primary(&mut self) -> Option<Expr> {
+    fn primary(&mut self) -> LoxResult<Expr> {
         if self.match_tokens(&[
             TokenKind::Number,
             TokenKind::String,
@@ -91,13 +82,13 @@ impl<'a> Parser<'a> {
             TokenKind::False,
             TokenKind::Nil,
         ]) {
-            Some(Expr::literal(self.advance().clone()))
+            Ok(Expr::literal(self.previous().clone()))
         } else if self.match_tokens(&[TokenKind::LeftParen]) {
             let expr = self.expression()?;
-            self.consume(TokenKind::RightParen, "Expected closing ')'");
-            Some(Expr::grouping(Box::new(expr)))
+            self.consume(TokenKind::RightParen, "Expected closing ')'")?;
+            Ok(Expr::grouping(Box::new(expr)))
         } else {
-            None
+            Err(self.syntax_error("Expected expression", self.peek().line))
         }
     }
 
@@ -142,18 +133,38 @@ impl<'a> Parser<'a> {
         self.current >= self.tokens.len()
     }
 
-    fn syntax_error(&mut self, error: SyntaxError) {
-        self.errors.push(LoxError::SyntaxError(error));
+    fn syntax_error(&self, message: &str, line: u32) -> LoxError {
+        LoxError::SyntaxError(SyntaxError::new(message.into(), line))
     }
 
-    fn consume(&mut self, kind: TokenKind, err_msg: &str) {
+    fn consume(&mut self, kind: TokenKind, err_msg: &str) -> LoxResult {
         if self.check(kind) {
             self.advance();
+            Ok(())
         } else {
-            self.syntax_error(SyntaxError::new(
-                err_msg.into(),
-                self.peek().line,
-            ));
+            Err(self.syntax_error(err_msg, self.peek().line))
+        }
+    }
+
+    fn _synchronize(&mut self) {
+        self.advance();
+        while !self.is_at_end() {
+            if self.previous().kind == TokenKind::Semicolon
+                || matches!(
+                    self.peek().kind,
+                    TokenKind::Class
+                        | TokenKind::Fun
+                        | TokenKind::Var
+                        | TokenKind::For
+                        | TokenKind::If
+                        | TokenKind::While
+                        | TokenKind::Print
+                        | TokenKind::Return
+                )
+            {
+                return;
+            }
+            self.advance();
         }
     }
 }
