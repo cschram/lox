@@ -28,18 +28,6 @@ impl Lox {
         }
     }
 
-    pub fn _get(&self, name: &str) -> LoxResult<LoxValue> {
-        self.env.get(name)
-    }
-
-    pub fn declare(&mut self, name: &str, value: LoxValue) {
-        Rc::get_mut(&mut self.env).unwrap().declare(name, value);
-    }
-
-    pub fn _assign(&mut self, name: &str, value: LoxValue) -> LoxResult<Option<LoxValue>> {
-        Rc::get_mut(&mut self.env).unwrap().assign(name, value)
-    }
-
     pub fn exec(&mut self, source: &str) -> LoxResult {
         let ScanResult {
             tokens,
@@ -62,7 +50,7 @@ impl Lox {
             return Err(LoxError::Runtime("Syntax errors encountered".into()));
         }
         for stmt in statements.iter() {
-            self.evaluate_stmt(stmt)?;
+            self.evaluate_stmt(&mut self.env.clone(), stmt)?;
         }
         Ok(())
     }
@@ -80,23 +68,23 @@ impl Lox {
         self.exec(&source)
     }
 
-    fn evaluate_stmt(&mut self, stmt: &Stmt) -> LoxResult {
+    fn evaluate_stmt(&mut self, env: &mut Rc<Environment>, stmt: &Stmt) -> LoxResult {
         match stmt {
             Stmt::Expr(expr) => {
-                self.evaluate_expr(expr)?;
+                self.evaluate_expr(env, expr)?;
                 Ok(())
             }
             Stmt::Print(expr) => {
-                let value = self.evaluate_expr(expr)?;
+                let value = self.evaluate_expr(env, expr)?;
                 info!("{}", value.to_string());
                 Ok(())
             }
             Stmt::Var { name, initializer } => {
                 let value = match initializer {
-                    Some(expr) => self.evaluate_expr(expr)?,
+                    Some(expr) => self.evaluate_expr(env, expr)?,
                     None => LoxValue::Nil,
                 };
-                Rc::get_mut(&mut self.env)
+                Rc::get_mut(env)
                     .unwrap()
                     .declare_by_token(name, value);
                 Ok(())
@@ -104,7 +92,7 @@ impl Lox {
             Stmt::Block(statements) => {
                 self.open_block();
                 for stmt in statements.iter() {
-                    if let Err(e) = self.evaluate_stmt(stmt) {
+                    if let Err(e) = self.evaluate_stmt(env, stmt) {
                         self.close_block()?;
                         return Err(e);
                     }
@@ -117,45 +105,46 @@ impl Lox {
                 body,
                 else_branch,
             } => {
-                let cond = self.evaluate_expr(condition)?;
+                let cond = self.evaluate_expr(env, condition)?;
                 if cond.is_truthy() {
-                    self.evaluate_stmt(body)
+                    self.evaluate_stmt(env, body)
                 } else if let Some(else_stmt) = else_branch {
-                    self.evaluate_stmt(else_stmt)
+                    self.evaluate_stmt(env, else_stmt)
                 } else {
                     Ok(())
                 }
             }
             Stmt::WhileLoop { condition, body } => {
-                while self.evaluate_expr(condition)?.is_truthy() {
-                    self.evaluate_stmt(body)?;
+                while self.evaluate_expr(env, condition)?.is_truthy() {
+                    self.evaluate_stmt(env, body)?;
                 }
                 Ok(())
             }
             Stmt::Fun { name, params, body } => {
                 let identifier = name.lexeme_str();
-                let fun = LoxValue::from_fn(
-                    Some(identifier.clone()),
-                    params.clone(),
-                    FunctionBody::Block(body.clone()),
-                );
-                self.declare(&identifier, fun);
+                let fun: LoxValue = LoxFunction {
+                    name: Some(identifier.clone()),
+                    params: params.clone(),
+                    body: FunctionBody::Block(body.clone()),
+                    closure: Some(Rc::new(Environment::inner(self.env.clone()))),
+                }.into();
+                Rc::get_mut(env).unwrap().declare(&identifier, fun);
                 Ok(())
             }
             Stmt::Return(expr) => {
                 let last = self.stack.len() - 1;
-                self.stack[last] = self.evaluate_expr(expr)?;
+                self.stack[last] = self.evaluate_expr(env, expr)?;
                 Ok(())
             }
         }
     }
 
-    fn evaluate_expr(&mut self, expr: &Expr) -> LoxResult<LoxValue> {
+    fn evaluate_expr(&mut self, env: &mut Rc<Environment>, expr: &Expr) -> LoxResult<LoxValue> {
         match expr {
             Expr::Literal(value) => Ok(LoxValue::from(value.clone())),
             Expr::Unary { operator, right } => match operator.kind {
                 TokenKind::Bang => {
-                    let right_value = self.evaluate_expr(right)?.is_truthy();
+                    let right_value = self.evaluate_expr(env, right)?.is_truthy();
                     Ok(LoxValue::Boolean(!right_value))
                 }
                 _ => Err(LoxError::Runtime(format!(
@@ -167,11 +156,11 @@ impl Lox {
                 operator,
                 left,
                 right,
-            } => self.evaluate_binary_expr(operator, left, right),
-            Expr::Grouping(inner) => self.evaluate_expr(inner),
+            } => self.evaluate_binary_expr(env, operator, left, right),
+            Expr::Grouping(inner) => self.evaluate_expr(env, inner),
             Expr::Identifier(name) => self.env.get_by_token(name),
             Expr::Assignment { name, value } => {
-                let val = self.evaluate_expr(value)?;
+                let val = self.evaluate_expr(env, value)?;
                 Rc::get_mut(&mut self.env)
                     .unwrap()
                     .assign_by_token(name, val.clone())?;
@@ -183,16 +172,16 @@ impl Lox {
                 right,
             } => match operator.kind {
                 TokenKind::Or => {
-                    let mut val = self.evaluate_expr(left)?;
+                    let mut val = self.evaluate_expr(env, left)?;
                     if !val.is_truthy() {
-                        val = self.evaluate_expr(right)?;
+                        val = self.evaluate_expr(env, right)?;
                     }
                     Ok(val)
                 }
                 TokenKind::And => {
-                    let mut val = self.evaluate_expr(left)?;
+                    let mut val = self.evaluate_expr(env, left)?;
                     if val.is_truthy() {
-                        val = self.evaluate_expr(right)?;
+                        val = self.evaluate_expr(env, right)?;
                     }
                     Ok(val)
                 }
@@ -202,41 +191,38 @@ impl Lox {
                 ))),
             },
             Expr::Call { callee, arguments } => {
-                if let LoxValue::Function {
-                    name: _,
-                    params,
-                    body,
-                } = self.evaluate_expr(callee)?
+                if let LoxValue::Function(func) = self.evaluate_expr(env, callee)?
                 {
-                    if arguments.len() != params.len() {
+                    if arguments.len() != func.params.len() {
                         Err(LoxError::Runtime(format!(
                             "Expected {} arguments, but got {}",
-                            params.len(),
+                            func.params.len(),
                             arguments.len(),
                         )))
                     } else {
                         let mut args: Vec<LoxValue> = vec![];
                         for arg in arguments.iter() {
-                            args.push(self.evaluate_expr(arg)?);
+                            args.push(self.evaluate_expr(env, arg)?);
                         }
-                        self.open_block();
-                        let return_value = match body {
+                        let mut env = func.closure
+                            .map(|env| env.clone())
+                            .unwrap_or(self.env.clone());
+                        let return_value = match func.body {
                             FunctionBody::Block(statements) => {
                                 for (i, arg) in args.drain(0..).enumerate() {
-                                    self.declare(&params[i].lexeme_str(), arg);
+                                    Rc::get_mut(&mut env).unwrap().declare(&func.params[i].lexeme_str(), arg);
                                 }
                                 self.stack.push(LoxValue::Nil);
                                 for stmt in statements.iter() {
-                                    self.evaluate_stmt(stmt)?;
+                                    self.evaluate_stmt(&mut env, stmt)?;
                                     if matches!(stmt, Stmt::Return(_)) {
                                         break;
                                     }
                                 }
                                 self.stack.pop().unwrap()
                             }
-                            FunctionBody::Native(func) => func(self.env.clone(), args)?,
+                            FunctionBody::Native(func) => func(&mut env, args)?,
                         };
-                        self.close_block()?;
                         Ok(return_value)
                     }
                 } else {
@@ -248,12 +234,13 @@ impl Lox {
 
     fn evaluate_binary_expr(
         &mut self,
+        env: &mut Rc<Environment>,
         operator: &Token,
         left: &Expr,
         right: &Expr,
     ) -> LoxResult<LoxValue> {
-        let left_value = self.evaluate_expr(left)?;
-        let right_value = self.evaluate_expr(right)?;
+        let left_value = self.evaluate_expr(env, left)?;
+        let right_value = self.evaluate_expr(env, right)?;
         match operator.kind {
             TokenKind::Plus => {
                 if left_value.is_string() || right_value.is_string() {
@@ -511,6 +498,35 @@ mod test {
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].body, "Hello, world!");
+        });
+        Ok(())
+    }
+
+    #[test]
+    fn function_closure() -> LoxResult {
+        mock_logger::init();
+        let mut lox = Lox::new();
+        lox.exec(
+            r#"
+            fun make_counter() {
+                var i = 0;
+                fun count() {
+                  i = i + 1;
+                  print i;
+                }
+              
+                return count;
+              }
+              
+              var counter = make_counter();
+              counter();
+              counter();
+            "#
+        )?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries[0].body, "1");
+            assert_eq!(entries[1].body, "2")
         });
         Ok(())
     }

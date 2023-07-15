@@ -6,7 +6,7 @@ use super::{
 };
 use std::rc::Rc;
 
-pub type NativeFunction = fn(Rc<Environment>, Vec<LoxValue>) -> LoxResult<LoxValue>;
+pub type NativeFunction = fn(&mut Rc<Environment>, Vec<LoxValue>) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum FunctionBody {
@@ -15,34 +15,30 @@ pub enum FunctionBody {
 }
 
 #[derive(PartialEq, Clone)]
+pub struct LoxFunction {
+    pub name: Option<String>,
+    pub params: Vec<Token>,
+    pub body: FunctionBody,
+    pub closure: Option<Rc<Environment>>,
+}
+
+#[derive(PartialEq, Clone)]
 pub enum LoxValue {
     Nil,
     Boolean(bool),
     Number(f64),
     String(String),
-    Function {
-        name: Option<String>,
-        params: Vec<Token>,
-        body: FunctionBody,
-    },
+    Function(LoxFunction),
 }
 
 impl LoxValue {
-    pub fn from_fn(name: Option<String>, params: Vec<Token>, body: FunctionBody) -> Self {
-        Self::Function { name, params, body }
-    }
-
     pub fn type_str(&self) -> String {
         match self {
             Self::Nil => "nil".into(),
             Self::Boolean(_) => "Boolean".into(),
             Self::Number(_) => "Number".into(),
             Self::String(_) => "String".into(),
-            Self::Function {
-                name: _,
-                params: _,
-                body: _,
-            } => "Function".into(),
+            Self::Function(_) => "Function".into(),
         }
     }
 
@@ -65,11 +61,7 @@ impl LoxValue {
     pub fn _is_fun(&self) -> bool {
         matches!(
             self,
-            Self::Function {
-                name: _,
-                params: _,
-                body: _
-            }
+            Self::Function(_)
         )
     }
 
@@ -157,12 +149,8 @@ impl ToString for LoxValue {
             Self::Boolean(value) => value.to_string(),
             Self::Number(value) => value.to_string(),
             Self::String(value) => value.clone(),
-            Self::Function {
-                name,
-                params: _,
-                body: _,
-            } => {
-                format!("<function {}>", name.as_ref().unwrap_or(&"".into()))
+            Self::Function(func) => {
+                format!("<function {}>", func.name.as_ref().unwrap_or(&"".into()))
             }
         }
     }
@@ -179,6 +167,12 @@ impl From<Token> for LoxValue {
             },
             None => Self::Nil,
         }
+    }
+}
+
+impl From<LoxFunction> for LoxValue {
+    fn from(func: LoxFunction) -> Self {
+        Self::Function(func)
     }
 }
 
