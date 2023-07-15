@@ -70,7 +70,7 @@ impl Environment {
 
     pub fn get_by_token(&self, identifier: &Token) -> LoxResult<LoxValue> {
         assert!(matches!(identifier.kind, TokenKind::Identifier));
-        self.get(identifier.lexeme.as_ref().unwrap())
+        self.get(&identifier.lexeme_str())
     }
 
     pub fn declare(&mut self, name: &str, value: LoxValue) {
@@ -79,7 +79,7 @@ impl Environment {
 
     pub fn declare_by_token(&mut self, identifier: &Token, value: LoxValue) {
         assert!(matches!(identifier.kind, TokenKind::Identifier));
-        self.declare(identifier.lexeme.as_ref().unwrap(), value);
+        self.declare(&identifier.lexeme_str(), value);
     }
 
     pub fn assign(&mut self, name: &str, value: LoxValue) -> LoxResult<Option<LoxValue>> {
@@ -101,7 +101,7 @@ impl Environment {
         value: LoxValue,
     ) -> LoxResult<Option<LoxValue>> {
         assert!(matches!(identifier.kind, TokenKind::Identifier));
-        self.assign(identifier.lexeme.as_ref().unwrap(), value)
+        self.assign(&identifier.lexeme_str(), value)
     }
 }
 

@@ -45,7 +45,7 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Literal {
     Number(f64),
     String(String),
@@ -64,7 +64,7 @@ impl Display for Literal {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub lexeme: Option<String>,
@@ -84,6 +84,13 @@ impl Token {
             lexeme,
             literal,
             line,
+        }
+    }
+
+    pub fn lexeme_str(&self) -> String {
+        match &self.lexeme {
+            Some(lexeme) => lexeme.clone(),
+            None => "".into()
         }
     }
 }

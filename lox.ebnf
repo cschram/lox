@@ -7,9 +7,16 @@ program =
 
 (* A statement that can accept a variable declaration *)
 declaration =
-    var_statement | statement ;
+    fun_declaration | var_declaration | statement ;
+(* Function declaration *)
+fun_declaration =
+    fun, function ;
+function =
+    identifier, "(", { fun_parameters }, ")", block ;
+fun_parameters =
+    identifier, { ",", identifier } ;
 (* A variable declaration *)
-var_statement =
+var_declaration =
     var, identifier, [ "=", expression ], semicolon ;
 (* A statement that does not accept a variable declaration *)
 statement =
@@ -20,7 +27,7 @@ expression_statement =
     expression, semicolon ;
 (* For loop *)
 for_statement =
-    for, "(", ( var_statement | expression_statement ), expression, semicolon, expression, ")", statement ;
+    for, "(", ( var_declaration | expression_statement ), expression, semicolon, expression, ")", statement ;
 (* If/Else statement *)
 if_statement =
     if, "(", expression, ")", statement, [ else, statement ] ;

@@ -17,12 +17,14 @@ use std::{
 
 pub struct Lox {
     env: Box<Environment>,
+    stack: Vec<LoxValue>,
 }
 
 impl Lox {
     pub fn new() -> Self {
         Self {
             env: Box::new(Environment::new()),
+            stack: vec![],
         }
     }
 
@@ -30,7 +32,7 @@ impl Lox {
         self.env.get(name)
     }
 
-    pub fn _declare(&mut self, name: &str, value: LoxValue) {
+    pub fn declare(&mut self, name: &str, value: LoxValue) {
         self.env.declare(name, value);
     }
 
@@ -128,6 +130,16 @@ impl Lox {
                 }
                 Ok(())
             }
+            Stmt::Fun { name, params, body } => {
+                let identifier = name.lexeme_str();
+                let fun = LoxValue::from_fn(
+                    Some(identifier.clone()),
+                    params.clone(),
+                    FunctionBody::Block(body.clone()),
+                );
+                self.declare(&identifier, fun);
+                Ok(())
+            }
         }
     }
 
@@ -177,35 +189,46 @@ impl Lox {
                 }
                 _ => Err(LoxError::RuntimeError(format!(
                     "Expected logical operator, got \"{}\"",
-                    operator.lexeme.as_ref().unwrap()
+                    operator.lexeme_str()
                 ))),
             },
             Expr::Call { callee, arguments } => {
-                if let LoxValue::Fun {
-                    arity,
-                    name: _,
-                    fun,
-                } = self.evaluate_expr(callee)?
-                {
-                    let mut args: Vec<LoxValue> = vec![];
-                    for arg in arguments.iter() {
-                        args.push(self.evaluate_expr(arg)?);
-                    }
-                    if args.len() != arity {
+                if let LoxValue::Function { name, params, body } = self.evaluate_expr(callee)? {
+                    if arguments.len() != params.len() {
                         Err(LoxError::RuntimeError(format!(
                             "Expected {} arguments, but got {}",
-                            arity,
-                            args.len(),
+                            params.len(),
+                            arguments.len(),
                         )))
                     } else {
-                        fun(args)
+                        let mut args: Vec<LoxValue> = vec![];
+                        for arg in arguments.iter() {
+                            args.push(self.evaluate_expr(arg)?);
+                        }
+                        self.open_block();
+                        match body {
+                            FunctionBody::Block(statements) => {
+                                for (i, arg) in args.drain(0..).enumerate() {
+                                    self.declare(&params[i].lexeme_str(), arg);
+                                }
+                                for stmt in statements.iter() {
+                                    self.evaluate_stmt(stmt)?;
+                                }
+                            },
+                            FunctionBody::Native(func) => {
+                                func(&mut self.env, args)?;
+                            }
+                        }
+                        self.close_block()?;
+                        // TODO: Return values
+                        Ok(LoxValue::Nil)
                     }
                 } else {
                     Err(LoxError::RuntimeError(
                         "Attempted to call non-function".into(),
                     ))
                 }
-            }
+            },
         }
     }
 
@@ -450,6 +473,25 @@ mod test {
         )?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
+        });
+        Ok(())
+    }
+
+    #[test]
+    fn function_definitions() -> LoxResult {
+        mock_logger::init();
+        let mut lox = Lox::new();
+        lox.exec(
+            r#"
+            fun greet(name) {
+                print "Hello, " + name + "!";
+            }
+            greet("world");
+        "#,
+        )?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].body, "Hello, world!");
         });
         Ok(())
     }

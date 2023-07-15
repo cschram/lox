@@ -1,9 +1,17 @@
 use super::{
+    ast::*,
+    environment::*,
     error::*,
     scanner::{Literal, Token},
 };
 
-pub type LoxFun = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
+pub type NativeFunction = fn(&mut Environment, Vec<LoxValue>) -> LoxResult<LoxValue>;
+
+#[derive(PartialEq, Clone)]
+pub enum FunctionBody {
+    Block(Vec<Stmt>),
+    Native(NativeFunction),
+}
 
 #[derive(PartialEq, Clone)]
 pub enum LoxValue {
@@ -11,25 +19,25 @@ pub enum LoxValue {
     Boolean(bool),
     Number(f64),
     String(String),
-    Fun {
-        arity: usize,
-        name: String,
-        fun: LoxFun,
-    },
+    Function {
+        name: Option<String>,
+        params: Vec<Token>,
+        body: FunctionBody,
+    }
 }
 
 impl LoxValue {
+    pub fn from_fn(name: Option<String>, params: Vec<Token>, body: FunctionBody) -> Self {
+        Self::Function { name, params, body }
+    }
+
     pub fn type_str(&self) -> String {
         match self {
             Self::Nil => "nil".into(),
             Self::Boolean(_) => "Boolean".into(),
             Self::Number(_) => "Number".into(),
             Self::String(_) => "String".into(),
-            Self::Fun {
-                arity: _,
-                name,
-                fun: _,
-            } => name.clone(),
+            Self::Function { name: _, params: _, body: _ } => "Function".into(),
         }
     }
 
@@ -52,11 +60,7 @@ impl LoxValue {
     pub fn is_fun(&self) -> bool {
         matches!(
             self,
-            Self::Fun {
-                arity: _,
-                name: _,
-                fun: _
-            }
+            Self::Function { name: _, params: _, body: _ }
         )
     }
 
@@ -119,6 +123,24 @@ impl LoxValue {
     }
 }
 
+impl From<bool> for LoxValue {
+    fn from(value: bool) -> Self {
+        Self::Boolean(value)
+    }
+}
+
+impl From<f64> for LoxValue {
+    fn from(value: f64) -> Self {
+        Self::Number(value)
+    }
+}
+
+impl From<String> for LoxValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
 impl ToString for LoxValue {
     fn to_string(&self) -> String {
         match self {
@@ -126,11 +148,10 @@ impl ToString for LoxValue {
             Self::Boolean(value) => value.to_string(),
             Self::Number(value) => value.to_string(),
             Self::String(value) => value.clone(),
-            Self::Fun {
-                arity: _,
-                name,
-                fun: _,
-            } => name.clone(),
+            Self::Function { name, params: _, body: _ } => {
+                format!("<function {}>", name.as_ref().unwrap_or(&"".into()))
+            }
+
         }
     }
 }

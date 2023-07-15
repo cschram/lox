@@ -37,11 +37,55 @@ impl Parser {
      * Statements
      */
     fn declaration(&mut self) -> LoxResult<Stmt> {
-        if self.match_tokens(&[TokenKind::Var]) {
-            self.var_statement()
+        if self.match_tokens(&[TokenKind::Fun]) {
+            self.function()
+        } else if self.match_tokens(&[TokenKind::Var]) {
+            self.var_declaration()
         } else {
             self.statement()
         }
+    }
+
+    fn function(&mut self) -> LoxResult<Stmt> {
+        let name = self
+            .consume(TokenKind::Identifier, "Expected identifier")?
+            .clone();
+        self.consume(TokenKind::LeftParen, "Expected opening parenthesis")?;
+        let params: Vec<Token> = self.fun_parameters()?;
+        self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
+        self.consume(TokenKind::LeftBrace, "Expected opening brace")?;
+        let mut body: Vec<Stmt> = vec![];
+        while !self.match_tokens(&[TokenKind::RightBrace]) && !self.is_at_end() {
+            body.push(self.statement()?);
+        }
+        Ok(Stmt::fun(name, params, body))
+    }
+
+    fn fun_parameters(&mut self) -> LoxResult<Vec<Token>> {
+        if self.match_tokens(&[TokenKind::Identifier]) {
+            let mut params = vec![self.previous().clone()];
+            while self.match_tokens(&[TokenKind::Identifier]) {
+                self.consume(TokenKind::Comma, "Expected comma")?;
+                params.push(self.previous().clone());
+            }
+            Ok(params)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn var_declaration(&mut self) -> LoxResult<Stmt> {
+        let identifier = self
+            .consume(TokenKind::Identifier, "Expected identifier")?
+            .clone();
+        let var = if self.match_tokens(&[TokenKind::Equal]) {
+            let expr = self.expression()?;
+            Stmt::var(identifier, Some(Box::new(expr)))
+        } else {
+            Stmt::var(identifier, None)
+        };
+        self.consume(TokenKind::Semicolon, "Expected a semicolon")?;
+        Ok(var)
     }
 
     fn statement(&mut self) -> LoxResult<Stmt> {
@@ -69,7 +113,7 @@ impl Parser {
     fn for_statement(&mut self) -> LoxResult<Stmt> {
         self.consume(TokenKind::LeftParen, "Expected opening parenthesis")?;
         let initializer = if self.match_tokens(&[TokenKind::Var]) {
-            self.var_statement()?
+            self.var_declaration()?
         } else {
             self.expression_statement()?
         };
@@ -85,7 +129,6 @@ impl Parser {
                 Box::new(Stmt::block(vec![body, Stmt::expr(Box::new(iterator))])),
             ),
         ]))
-        // Ok(Stmt::for_loop(initializer, condition, iterator, body))
     }
 
     fn if_statement(&mut self) -> LoxResult<Stmt> {
@@ -113,20 +156,6 @@ impl Parser {
         self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
         let body = Box::new(self.statement()?);
         Ok(Stmt::while_loop(condition, body))
-    }
-
-    fn var_statement(&mut self) -> LoxResult<Stmt> {
-        let identifier = self
-            .consume(TokenKind::Identifier, "Expected identifier")?
-            .clone();
-        let var = if self.match_tokens(&[TokenKind::Equal]) {
-            let expr = self.expression()?;
-            Stmt::var(identifier, Some(Box::new(expr)))
-        } else {
-            Stmt::var(identifier, None)
-        };
-        self.consume(TokenKind::Semicolon, "Expected a semicolon")?;
-        Ok(var)
     }
 
     fn block(&mut self) -> LoxResult<Stmt> {
@@ -453,7 +482,10 @@ mod test {
     fn functions() {
         let ScanResult { tokens, errors: _ } = Scanner::scan(
             r#"
-            do_thing()("one")(true, false);
+            fun greet(name) {
+                print "Hello, " + name + "!";
+            }
+            greet("world");
         "#,
         );
         let ParseResult { statements, errors } = Parser::parse(tokens);
@@ -461,6 +493,6 @@ mod test {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 1);
+        assert_eq!(statements.len(), 2);
     }
 }

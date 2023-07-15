@@ -1,7 +1,12 @@
-use super::scanner::{Token, TokenKind};
+use super::{
+    environment::*,
+    error::*,
+    scanner::{Token, TokenKind},
+    value::LoxValue,
+};
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(PartialEq, Clone)]
 pub enum Expr {
     Literal(Token),
     Unary {
@@ -122,7 +127,7 @@ impl Expr {
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::Literal(value) => write!(f, "{}", value.lexeme.as_ref().unwrap()),
+            Expr::Literal(value) => write!(f, "{}", value.lexeme_str()),
             Expr::Unary { operator, right } => {
                 write!(
                     f,
@@ -148,7 +153,7 @@ impl Display for Expr {
                 write!(f, "{}", inner.to_string(),)
             }
             Expr::Identifier(name) => {
-                write!(f, "{}", name.lexeme.as_ref().unwrap())
+                write!(f, "{}", name.lexeme_str())
             }
             Expr::Assignment { name, value } => {
                 write!(f, "(= {} {})", name, value)
@@ -182,6 +187,7 @@ impl Display for Expr {
     }
 }
 
+#[derive(PartialEq, Clone)]
 pub enum Stmt {
     Expr(Box<Expr>),
     Print(Box<Expr>),
@@ -199,6 +205,11 @@ pub enum Stmt {
         condition: Box<Expr>,
         body: Box<Stmt>,
     },
+    Fun {
+        name: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+    }
 }
 
 impl Stmt {
@@ -229,6 +240,10 @@ impl Stmt {
     pub fn while_loop(condition: Box<Expr>, body: Box<Stmt>) -> Self {
         Self::WhileLoop { condition, body }
     }
+
+    pub fn fun(name: Token, params: Vec<Token>, body: Vec<Stmt>) -> Self {
+        Self::Fun { name, params, body }
+    }
 }
 
 impl Display for Stmt {
@@ -240,10 +255,10 @@ impl Display for Stmt {
                 Some(expr) => write!(
                     f,
                     "(var {} {})",
-                    name.lexeme.as_ref().unwrap().to_string(),
+                    name.lexeme_str(),
                     expr.to_string()
                 ),
-                None => write!(f, "(var {})", name.lexeme.as_ref().unwrap().to_string()),
+                None => write!(f, "(var {})", name.lexeme_str()),
             },
             Self::Block(statements) => {
                 write!(f, "(block ")?;
@@ -266,6 +281,23 @@ impl Display for Stmt {
             },
             Self::WhileLoop { condition, body } => {
                 write!(f, "(while {} {}", condition, body)
+            },
+            Self::Fun { name, params, body } => {
+                write!(
+                    f,
+                    "(fun {} ({}) ({}))",
+                    name.lexeme_str(),
+                    params
+                        .iter()
+                        .map(|param| param.lexeme_str())
+                        .collect::<Vec<String>>()
+                        .join(" "),
+                    body
+                        .iter()
+                        .map(|stmt| stmt.to_string())
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                )
             }
         }
     }
