@@ -1,7 +1,9 @@
 use super::{
     error::*,
-    scanner::{Token, Literal},
+    scanner::{Literal, Token},
 };
+
+pub type LoxFun = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum LoxValue {
@@ -9,6 +11,11 @@ pub enum LoxValue {
     Boolean(bool),
     Number(f64),
     String(String),
+    Fun {
+        arity: usize,
+        name: String,
+        fun: LoxFun,
+    },
 }
 
 impl LoxValue {
@@ -18,10 +25,15 @@ impl LoxValue {
             Self::Boolean(_) => "Boolean".into(),
             Self::Number(_) => "Number".into(),
             Self::String(_) => "String".into(),
+            Self::Fun {
+                arity: _,
+                name,
+                fun: _,
+            } => name.clone(),
         }
     }
 
-    pub fn is_nil(&self) -> bool {
+    pub fn _is_nil(&self) -> bool {
         matches!(self, Self::Nil)
     }
 
@@ -37,11 +49,22 @@ impl LoxValue {
         matches!(self, Self::String(_))
     }
 
+    pub fn is_fun(&self) -> bool {
+        matches!(
+            self,
+            Self::Fun {
+                arity: _,
+                name: _,
+                fun: _
+            }
+        )
+    }
+
     pub fn _set_nil(&mut self) {
         *self = Self::Nil;
     }
 
-    pub fn get_boolean(&self) -> LoxResult<bool> {
+    pub fn _get_boolean(&self) -> LoxResult<bool> {
         if let Self::Boolean(value) = self {
             Ok(*value)
         } else {
@@ -71,7 +94,7 @@ impl LoxValue {
         *self = Self::Number(value);
     }
 
-    pub fn get_string(&self) -> LoxResult<String> {
+    pub fn _get_string(&self) -> LoxResult<String> {
         if let Self::String(value) = self {
             println!("get_string(): {}", value);
             Ok(value.clone())
@@ -103,6 +126,11 @@ impl ToString for LoxValue {
             Self::Boolean(value) => value.to_string(),
             Self::Number(value) => value.to_string(),
             Self::String(value) => value.clone(),
+            Self::Fun {
+                arity: _,
+                name,
+                fun: _,
+            } => name.clone(),
         }
     }
 }

@@ -200,10 +200,10 @@ impl Scanner {
             '"' => self.scan_string(),
             '0'..='9' => self.scan_number(),
             _ => {
-                if self.peek().is_alphabetic() {
+                if self.previous().is_alphabetic() {
                     self.scan_identifier();
                 } else {
-                    self.add_syntax_error(format!("Unknown character \"{}\"", self.get_lexeme()));
+                    self.add_syntax_error(format!("Unknown character \"{}\"", self.previous()));
                 }
             }
         }
@@ -230,7 +230,7 @@ impl Scanner {
         } else {
             self.advance();
             let lexeme = self.get_lexeme();
-            let literal = lexeme[1..lexeme.len()-1].to_string();
+            let literal = lexeme[1..lexeme.len() - 1].to_string();
             self.tokens.push(Token::new(
                 TokenKind::String,
                 Some(lexeme),
@@ -258,7 +258,7 @@ impl Scanner {
 
     // Scan an identifier
     fn scan_identifier(&mut self) {
-        while !self.id_at_end() && self.peek().is_alphanumeric()  {
+        while !self.id_at_end() && (self.peek().is_alphanumeric() || *self.peek() == '_') {
             self.advance();
         }
         let lexeme = self.get_lexeme();
@@ -302,6 +302,11 @@ impl Scanner {
     // Grab the current character.
     fn peek(&self) -> &char {
         &self.source[self.current]
+    }
+
+    // Grab the last character.
+    fn previous(&self) -> &char {
+        &self.source[self.current - 1]
     }
 
     // Grab the next character.
@@ -356,5 +361,121 @@ impl Scanner {
     // Check if we've reached the end of the source.
     fn id_at_end(&self) -> bool {
         self.current >= self.source.len()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn expressions() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            "foo" + (1 + (3 / 2) - (8 * 4))
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 18);
+    }
+
+    #[test]
+    fn variables() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            var i = 5;
+            var foo = "bar";
+            var is_okay = true;
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 16);
+    }
+
+    #[test]
+    fn print_statement() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            print "Hello, world!";
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 4);
+    }
+
+    #[test]
+    fn control_flow() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            if true {
+                print "true";
+            } else {
+                print "false";
+            }
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 14);
+    }
+
+    #[test]
+    fn fun_statement() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            var greeting = "Hello";
+            fun greet(name) {
+                print greeting + ", " + name;
+            }
+            greet("world");
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 25);
+    }
+
+    #[test]
+    fn class_statement() {
+        let ScanResult { tokens, errors } = Scanner::scan(
+            r#"
+            class Greeter {
+                init(greeting) {
+                    this.greeting = greeting;
+                }
+
+                greet(name) {
+                    print this.greeting + ", " + name;
+                }
+            }
+
+            class HelloGreeter < Greeter {
+                init() {
+                    super.init("Hello");
+                }
+            }
+
+            var greeter = HelloGreeter();
+            greeter.greet("world");
+        "#,
+        );
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 64);
     }
 }

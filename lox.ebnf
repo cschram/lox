@@ -1,23 +1,108 @@
 (* Lox language definition reference. *)
 
-(* Expressions *)
+program =
+    statement, { statement } , eof;
+
+(*** Statements ***)
+
+(* A statement that can accept a variable declaration *)
+declaration =
+    var_statement | statement ;
+(* A variable declaration *)
+var_statement =
+    var, identifier, [ "=", expression ], semicolon ;
+(* A statement that does not accept a variable declaration *)
+statement =
+    expression_statement | for_statement | if_statement | print_statement |
+    while_statement | block;
+(* An expression terminated by a semicolon *)
+expression_statement =
+    expression, semicolon ;
+(* For loop *)
+for_statement =
+    for, "(", ( var_statement | expression_statement ), expression, semicolon, expression, ")", statement ;
+(* If/Else statement *)
+if_statement =
+    if, "(", expression, ")", statement, [ else, statement ] ;
+(* Print statement *)
+print_statement =
+    print, expression, semicolon ;
+(* While loop *)
+while_statement =
+    while, "(", expression, ")", statement ;
+(* Scope block *)
+block =
+    "{", [ declaration, { declaration } ] "}" ;
+
+(*** Expressions ***)
+
+(* Base expression *)
 expression =
     equality ;
+(* Assignment expressions *)
+assignment =
+    identifier, "=", assignment | logic_or ;
+logic_or =
+    logic_and, { or, logic_and } ;
+logic_and =
+    equality, { and, equality } ;
+(* Equality or non-equality expression *)
 equality =
     comparison, { ( "!=" | "==" ), comparison } ;
+(* Comparison expression *)
 comparison =
     term, { ( ">" | ">=" | "<" | "<=" ), term } ;
+(* Additional and subtraction expression *)
 term =
     factor, { ( "-" | "+" ), factor } ;
+(* Multiplication and division expression *)
 factor =
     unary, { ( "/" | "*" ), unary } ;
+(* Unary expression *)
 unary =
-    ( "!" | "-" ), unary | primary ;
+    ( "!" | "-" ), unary | call ;
+(* Function call *)
+call =
+    primary, { "(", { arguments }, ")" } ;
+(* Function call arguments *)
+arguments =
+    expression, { ",", expression } ;
+(* Literal values and identifiers *)
 primary =
-    number | string | "true" | "false" | "nil" | "(", expression, ")" ;
+    number | string | "true" | "false" | "nil" | "(", expression, ")" |
+    identifier ;
 
-(* Special terminals *)
+(*** Special literals and keywords ***)
+
 number =
     ? double precision floating-point ? ;
 string =
     ? unicode string ? ;
+identifier =
+    ? identifier ? ;
+eof =
+    ? eof ? ;
+semicolon =
+    ";" ;
+print =
+    "print" ;
+var =
+    "var" ;
+if =
+    "if" ;
+else =
+    "else" ;
+and =
+    "and" ;
+or =
+    "or" ;
+for =
+    "for" ;
+while =
+    "while" ;
+fun =
+    "fun" ;
+return =
+    "return" ;
+class =
+    "class" ;

@@ -1,6 +1,6 @@
-mod treewalk;
+mod basic;
 
-use crate::treewalk::{Lox, LoxError};
+use crate::basic::{Lox, LoxError};
 
 fn main() -> Result<(), LoxError> {
     simple_logger::init().unwrap();
