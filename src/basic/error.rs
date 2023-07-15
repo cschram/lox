@@ -23,13 +23,13 @@ impl Display for SyntaxError {
 #[derive(Error, Debug)]
 pub enum LoxError {
     #[error("IO Error: {0}")]
-    IOError(#[from] std::io::Error),
+    IO(#[from] std::io::Error),
     #[error("System Time Error: {0}")]
-    SystemTimeError(#[from] std::time::SystemTimeError),
+    SystemTime(#[from] std::time::SystemTimeError),
     #[error("{0}")]
-    SyntaxError(SyntaxError),
+    Syntax(SyntaxError),
     #[error("Runtime Error: {0}")]
-    RuntimeError(String),
+    Runtime(String),
 }
 
 pub type LoxResult<T = ()> = Result<T, LoxError>;

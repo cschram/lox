@@ -4,8 +4,9 @@ use super::{
     error::*,
     scanner::{Literal, Token},
 };
+use std::rc::Rc;
 
-pub type NativeFunction = fn(&mut Environment, Vec<LoxValue>) -> LoxResult<LoxValue>;
+pub type NativeFunction = fn(Rc<Environment>, Vec<LoxValue>) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum FunctionBody {
@@ -23,7 +24,7 @@ pub enum LoxValue {
         name: Option<String>,
         params: Vec<Token>,
         body: FunctionBody,
-    }
+    },
 }
 
 impl LoxValue {
@@ -37,7 +38,11 @@ impl LoxValue {
             Self::Boolean(_) => "Boolean".into(),
             Self::Number(_) => "Number".into(),
             Self::String(_) => "String".into(),
-            Self::Function { name: _, params: _, body: _ } => "Function".into(),
+            Self::Function {
+                name: _,
+                params: _,
+                body: _,
+            } => "Function".into(),
         }
     }
 
@@ -57,10 +62,14 @@ impl LoxValue {
         matches!(self, Self::String(_))
     }
 
-    pub fn is_fun(&self) -> bool {
+    pub fn _is_fun(&self) -> bool {
         matches!(
             self,
-            Self::Function { name: _, params: _, body: _ }
+            Self::Function {
+                name: _,
+                params: _,
+                body: _
+            }
         )
     }
 
@@ -72,7 +81,7 @@ impl LoxValue {
         if let Self::Boolean(value) = self {
             Ok(*value)
         } else {
-            Err(LoxError::RuntimeError(format!(
+            Err(LoxError::Runtime(format!(
                 "Expected Boolean, got \"{}\"",
                 self.type_str()
             )))
@@ -87,7 +96,7 @@ impl LoxValue {
         if let Self::Number(value) = self {
             Ok(*value)
         } else {
-            Err(LoxError::RuntimeError(format!(
+            Err(LoxError::Runtime(format!(
                 "Expected Number, got \"{}\"",
                 self.type_str()
             )))
@@ -103,7 +112,7 @@ impl LoxValue {
             println!("get_string(): {}", value);
             Ok(value.clone())
         } else {
-            Err(LoxError::RuntimeError(format!(
+            Err(LoxError::Runtime(format!(
                 "Expected String, got \"{}\"",
                 self.type_str()
             )))
@@ -148,10 +157,13 @@ impl ToString for LoxValue {
             Self::Boolean(value) => value.to_string(),
             Self::Number(value) => value.to_string(),
             Self::String(value) => value.clone(),
-            Self::Function { name, params: _, body: _ } => {
+            Self::Function {
+                name,
+                params: _,
+                body: _,
+            } => {
                 format!("<function {}>", name.as_ref().unwrap_or(&"".into()))
             }
-
         }
     }
 }

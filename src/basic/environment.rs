@@ -1,10 +1,10 @@
 use super::{error::*, globals::*, scanner::*, value::*};
-use std::{collections::HashMap, mem::replace};
+use std::{collections::HashMap, rc::Rc};
 
 pub struct Environment {
     globals: HashMap<String, LoxValue>,
     locals: HashMap<String, LoxValue>,
-    parent: Option<Box<Environment>>,
+    parent: Option<Rc<Environment>>,
 }
 
 impl Environment {
@@ -16,7 +16,7 @@ impl Environment {
         }
     }
 
-    pub fn inner(parent: Box<Environment>) -> Self {
+    pub fn inner(parent: Rc<Environment>) -> Self {
         Self {
             globals: HashMap::new(), // Child scopes don't get duplicate globals.
             locals: HashMap::new(),
@@ -24,11 +24,11 @@ impl Environment {
         }
     }
 
-    pub fn close(&mut self) -> LoxResult<Box<Environment>> {
+    pub fn close(&mut self) -> LoxResult<Rc<Environment>> {
         if self.parent.is_some() {
-            Ok(replace(&mut self.parent, None).unwrap())
+            Ok(self.parent.take().unwrap())
         } else {
-            Err(LoxError::RuntimeError(
+            Err(LoxError::Runtime(
                 "Attempted to unroll top level env".into(),
             ))
         }
@@ -46,22 +46,22 @@ impl Environment {
                 .parent
                 .as_ref()
                 .map(|parent| parent.get_ref(name))
-                .unwrap_or(Err(LoxError::RuntimeError(format!(
+                .unwrap_or(Err(LoxError::Runtime(format!(
                     "Undefined variable '{}'",
                     name
                 )))),
         }
     }
 
-    pub fn get_mut(&mut self, name: &str) -> LoxResult<&mut LoxValue> {
+    pub fn _get_mut(&mut self, name: &str) -> LoxResult<&mut LoxValue> {
         let value = self.locals.get_mut(name);
         match value {
             Some(value) => Ok(value),
             None => self
                 .parent
                 .as_mut()
-                .map(|parent| parent.get_mut(name))
-                .unwrap_or(Err(LoxError::RuntimeError(format!(
+                .map(|parent| Rc::get_mut(parent).unwrap()._get_mut(name))
+                .unwrap_or(Err(LoxError::Runtime(format!(
                     "Undefined variable '{}'",
                     name
                 )))),
@@ -86,9 +86,9 @@ impl Environment {
         if self.locals.contains_key(name) {
             Ok(self.locals.insert(name.into(), value))
         } else if let Some(parent) = &mut self.parent {
-            parent.assign(name, value)
+            Rc::get_mut(parent).unwrap().assign(name, value)
         } else {
-            Err(LoxError::RuntimeError(format!(
+            Err(LoxError::Runtime(format!(
                 "Attempted to assign unbound variable \"{}\"",
                 name
             )))
@@ -153,19 +153,30 @@ mod test {
 
     #[test]
     fn parents() {
-        let mut env = Box::new(Environment::new());
-        env.declare("level", LoxValue::String("one".into()));
-        env.declare("global", LoxValue::Number(1.0));
-        env = Box::new(Environment::inner(env));
-        env.declare("level", LoxValue::String("two".into()));
-        env = Box::new(Environment::inner(env));
-        env.declare("level", LoxValue::String("three".into()));
-        env.assign("global", LoxValue::Number(2.0)).unwrap();
+        let mut env = Rc::new(Environment::new());
+        Rc::get_mut(&mut env)
+            .unwrap()
+            .declare("level", LoxValue::String("one".into()));
+        Rc::get_mut(&mut env)
+            .unwrap()
+            .declare("global", LoxValue::Number(1.0));
+        env = Rc::new(Environment::inner(env));
+        Rc::get_mut(&mut env)
+            .unwrap()
+            .declare("level", LoxValue::String("two".into()));
+        env = Rc::new(Environment::inner(env));
+        Rc::get_mut(&mut env)
+            .unwrap()
+            .declare("level", LoxValue::String("three".into()));
+        Rc::get_mut(&mut env)
+            .unwrap()
+            .assign("global", LoxValue::Number(2.0))
+            .unwrap();
         assert!(env.get("level").unwrap() == LoxValue::String("three".into()));
         assert!(env.get("global").unwrap() == LoxValue::Number(2.0));
-        env = env.close().unwrap();
+        env = Rc::get_mut(&mut env).unwrap().close().unwrap();
         assert!(env.get("level").unwrap() == LoxValue::String("two".into()));
-        env = env.close().unwrap();
+        env = Rc::get_mut(&mut env).unwrap().close().unwrap();
         assert!(env.get("level").unwrap() == LoxValue::String("one".into()));
     }
 }

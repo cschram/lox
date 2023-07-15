@@ -12,18 +12,18 @@ use log::{error, info};
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    mem::swap,
+    rc::Rc,
 };
 
 pub struct Lox {
-    env: Box<Environment>,
+    env: Rc<Environment>,
     stack: Vec<LoxValue>,
 }
 
 impl Lox {
     pub fn new() -> Self {
         Self {
-            env: Box::new(Environment::new()),
+            env: Rc::new(Environment::new()),
             stack: vec![],
         }
     }
@@ -33,11 +33,11 @@ impl Lox {
     }
 
     pub fn declare(&mut self, name: &str, value: LoxValue) {
-        self.env.declare(name, value);
+        Rc::get_mut(&mut self.env).unwrap().declare(name, value);
     }
 
     pub fn _assign(&mut self, name: &str, value: LoxValue) -> LoxResult<Option<LoxValue>> {
-        self.env.assign(name, value)
+        Rc::get_mut(&mut self.env).unwrap().assign(name, value)
     }
 
     pub fn exec(&mut self, source: &str) -> LoxResult {
@@ -45,24 +45,24 @@ impl Lox {
             tokens,
             errors: scan_errors,
         } = Scanner::scan(source);
-        if scan_errors.len() > 0 {
+        if !scan_errors.is_empty() {
             for err in scan_errors.iter() {
                 error!("Error: {}", err.to_string());
             }
-            return Err(LoxError::RuntimeError("Syntax errors encountered".into()));
+            return Err(LoxError::Runtime("Syntax errors encountered".into()));
         }
         let ParseResult {
             statements,
             errors: parse_errors,
         } = Parser::parse(tokens);
-        if parse_errors.len() > 0 {
+        if !parse_errors.is_empty() {
             for err in parse_errors.iter() {
                 error!("Error: {}", err.to_string());
             }
-            return Err(LoxError::RuntimeError("Syntax errors encountered".into()));
+            return Err(LoxError::Runtime("Syntax errors encountered".into()));
         }
         for stmt in statements.iter() {
-            self.evaluate_stmt(&stmt)?;
+            self.evaluate_stmt(stmt)?;
         }
         Ok(())
     }
@@ -96,7 +96,9 @@ impl Lox {
                     Some(expr) => self.evaluate_expr(expr)?,
                     None => LoxValue::Nil,
                 };
-                self.env.declare_by_token(name, value);
+                Rc::get_mut(&mut self.env)
+                    .unwrap()
+                    .declare_by_token(name, value);
                 Ok(())
             }
             Stmt::Block(statements) => {
@@ -140,6 +142,11 @@ impl Lox {
                 self.declare(&identifier, fun);
                 Ok(())
             }
+            Stmt::Return(expr) => {
+                let last = self.stack.len() - 1;
+                self.stack[last] = self.evaluate_expr(expr)?;
+                Ok(())
+            }
         }
     }
 
@@ -148,10 +155,10 @@ impl Lox {
             Expr::Literal(value) => Ok(LoxValue::from(value.clone())),
             Expr::Unary { operator, right } => match operator.kind {
                 TokenKind::Bang => {
-                    let right_value = self.evaluate_expr(&right)?.is_truthy();
+                    let right_value = self.evaluate_expr(right)?.is_truthy();
                     Ok(LoxValue::Boolean(!right_value))
                 }
-                _ => Err(LoxError::RuntimeError(format!(
+                _ => Err(LoxError::Runtime(format!(
                     "Unknown unary operator \"{}\"",
                     operator
                 ))),
@@ -161,11 +168,13 @@ impl Lox {
                 left,
                 right,
             } => self.evaluate_binary_expr(operator, left, right),
-            Expr::Grouping(inner) => self.evaluate_expr(&inner),
+            Expr::Grouping(inner) => self.evaluate_expr(inner),
             Expr::Identifier(name) => self.env.get_by_token(name),
             Expr::Assignment { name, value } => {
                 let val = self.evaluate_expr(value)?;
-                self.env.assign_by_token(name, val.clone())?;
+                Rc::get_mut(&mut self.env)
+                    .unwrap()
+                    .assign_by_token(name, val.clone())?;
                 Ok(val)
             }
             Expr::Logical {
@@ -187,15 +196,20 @@ impl Lox {
                     }
                     Ok(val)
                 }
-                _ => Err(LoxError::RuntimeError(format!(
+                _ => Err(LoxError::Runtime(format!(
                     "Expected logical operator, got \"{}\"",
                     operator.lexeme_str()
                 ))),
             },
             Expr::Call { callee, arguments } => {
-                if let LoxValue::Function { name, params, body } = self.evaluate_expr(callee)? {
+                if let LoxValue::Function {
+                    name: _,
+                    params,
+                    body,
+                } = self.evaluate_expr(callee)?
+                {
                     if arguments.len() != params.len() {
-                        Err(LoxError::RuntimeError(format!(
+                        Err(LoxError::Runtime(format!(
                             "Expected {} arguments, but got {}",
                             params.len(),
                             arguments.len(),
@@ -206,40 +220,40 @@ impl Lox {
                             args.push(self.evaluate_expr(arg)?);
                         }
                         self.open_block();
-                        match body {
+                        let return_value = match body {
                             FunctionBody::Block(statements) => {
                                 for (i, arg) in args.drain(0..).enumerate() {
                                     self.declare(&params[i].lexeme_str(), arg);
                                 }
+                                self.stack.push(LoxValue::Nil);
                                 for stmt in statements.iter() {
                                     self.evaluate_stmt(stmt)?;
+                                    if matches!(stmt, Stmt::Return(_)) {
+                                        break;
+                                    }
                                 }
-                            },
-                            FunctionBody::Native(func) => {
-                                func(&mut self.env, args)?;
+                                self.stack.pop().unwrap()
                             }
-                        }
+                            FunctionBody::Native(func) => func(self.env.clone(), args)?,
+                        };
                         self.close_block()?;
-                        // TODO: Return values
-                        Ok(LoxValue::Nil)
+                        Ok(return_value)
                     }
                 } else {
-                    Err(LoxError::RuntimeError(
-                        "Attempted to call non-function".into(),
-                    ))
+                    Err(LoxError::Runtime("Attempted to call non-function".into()))
                 }
-            },
+            }
         }
     }
 
     fn evaluate_binary_expr(
         &mut self,
         operator: &Token,
-        left: &Box<Expr>,
-        right: &Box<Expr>,
+        left: &Expr,
+        right: &Expr,
     ) -> LoxResult<LoxValue> {
-        let left_value = self.evaluate_expr(&left)?;
-        let right_value = self.evaluate_expr(&right)?;
+        let left_value = self.evaluate_expr(left)?;
+        let right_value = self.evaluate_expr(right)?;
         match operator.kind {
             TokenKind::Plus => {
                 if left_value.is_string() || right_value.is_string() {
@@ -253,7 +267,7 @@ impl Lox {
                         left_value.get_number()? + right_value.get_number()?,
                     ))
                 } else {
-                    Err(LoxError::RuntimeError(format!(
+                    Err(LoxError::Runtime(format!(
                         "Invalid operands {} + {}",
                         left_value.to_string(),
                         right_value.to_string(),
@@ -275,7 +289,7 @@ impl Lox {
                         left_value.get_number()? > right_value.get_number()?,
                     ))
                 } else {
-                    Err(LoxError::RuntimeError(format!(
+                    Err(LoxError::Runtime(format!(
                         "Invalid operands {} > {}",
                         left_value.to_string(),
                         right_value.to_string(),
@@ -288,7 +302,7 @@ impl Lox {
                         left_value.get_number()? >= right_value.get_number()?,
                     ))
                 } else {
-                    Err(LoxError::RuntimeError(format!(
+                    Err(LoxError::Runtime(format!(
                         "Invalid operands {} >= {}",
                         left_value.to_string(),
                         right_value.to_string(),
@@ -301,7 +315,7 @@ impl Lox {
                         left_value.get_number()? < right_value.get_number()?,
                     ))
                 } else {
-                    Err(LoxError::RuntimeError(format!(
+                    Err(LoxError::Runtime(format!(
                         "Invalid operands {} < {}",
                         left_value.to_string(),
                         right_value.to_string(),
@@ -314,7 +328,7 @@ impl Lox {
                         left_value.get_number()? <= right_value.get_number()?,
                     ))
                 } else {
-                    Err(LoxError::RuntimeError(format!(
+                    Err(LoxError::Runtime(format!(
                         "Invalid operands {} <= {}",
                         left_value.to_string(),
                         right_value.to_string(),
@@ -323,7 +337,7 @@ impl Lox {
             }
             TokenKind::EqualEqual => Ok(LoxValue::Boolean(left_value == right_value)),
             TokenKind::BangEqual => Ok(LoxValue::Boolean(left_value != right_value)),
-            _ => Err(LoxError::RuntimeError(format!(
+            _ => Err(LoxError::Runtime(format!(
                 "Unknown binary operator \"{}\"",
                 operator
             ))),
@@ -331,13 +345,11 @@ impl Lox {
     }
 
     fn open_block(&mut self) {
-        let mut env = Box::new(Environment::new());
-        swap(&mut self.env, &mut env);
-        self.env = Box::new(Environment::inner(env));
+        self.env = Rc::new(Environment::inner(self.env.clone()));
     }
 
     fn close_block(&mut self) -> LoxResult {
-        self.env = self.env.close()?;
+        self.env = Rc::get_mut(&mut self.env).unwrap().close()?;
         Ok(())
     }
 }
@@ -473,6 +485,7 @@ mod test {
         )?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
+            assert_ne!(entries[0].body, "nil");
         });
         Ok(())
     }
@@ -484,9 +497,15 @@ mod test {
         lox.exec(
             r#"
             fun greet(name) {
-                print "Hello, " + name + "!";
+                fun greeting() {
+                    return "Hello, " + name + "!";
+                }
+                print greeting();
             }
-            greet("world");
+            fun get_name() {
+                return "world";
+            }
+            greet(get_name());
         "#,
         )?;
         MockLogger::entries(|entries| {

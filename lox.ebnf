@@ -21,7 +21,7 @@ var_declaration =
 (* A statement that does not accept a variable declaration *)
 statement =
     expression_statement | for_statement | if_statement | print_statement |
-    while_statement | block;
+    return_statement | while_statement | block;
 (* An expression terminated by a semicolon *)
 expression_statement =
     expression, semicolon ;
@@ -34,6 +34,9 @@ if_statement =
 (* Print statement *)
 print_statement =
     print, expression, semicolon ;
+(* Return statement *)
+return_statement =
+    return, { expression }, semicolon ;
 (* While loop *)
 while_statement =
     while, "(", expression, ")", statement ;

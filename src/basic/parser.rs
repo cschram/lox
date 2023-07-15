@@ -56,9 +56,9 @@ impl Parser {
         self.consume(TokenKind::LeftBrace, "Expected opening brace")?;
         let mut body: Vec<Stmt> = vec![];
         while !self.match_tokens(&[TokenKind::RightBrace]) && !self.is_at_end() {
-            body.push(self.statement()?);
+            body.push(self.declaration()?);
         }
-        Ok(Stmt::fun(name, params, body))
+        Ok(Stmt::Fun { name, params, body })
     }
 
     fn fun_parameters(&mut self) -> LoxResult<Vec<Token>> {
@@ -80,9 +80,15 @@ impl Parser {
             .clone();
         let var = if self.match_tokens(&[TokenKind::Equal]) {
             let expr = self.expression()?;
-            Stmt::var(identifier, Some(Box::new(expr)))
+            Stmt::Var {
+                name: identifier,
+                initializer: Some(Box::new(expr)),
+            }
         } else {
-            Stmt::var(identifier, None)
+            Stmt::Var {
+                name: identifier,
+                initializer: None,
+            }
         };
         self.consume(TokenKind::Semicolon, "Expected a semicolon")?;
         Ok(var)
@@ -95,6 +101,8 @@ impl Parser {
             self.if_statement()
         } else if self.match_tokens(&[TokenKind::Print]) {
             self.print_statement()
+        } else if self.match_tokens(&[TokenKind::Return]) {
+            self.return_statement()
         } else if self.match_tokens(&[TokenKind::While]) {
             self.while_statement()
         } else if self.match_tokens(&[TokenKind::LeftBrace]) {
@@ -122,12 +130,12 @@ impl Parser {
         let iterator = self.expression()?;
         self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
         let body = self.statement()?;
-        Ok(Stmt::block(vec![
+        Ok(Stmt::Block(vec![
             initializer,
-            Stmt::while_loop(
-                Box::new(condition),
-                Box::new(Stmt::block(vec![body, Stmt::expr(Box::new(iterator))])),
-            ),
+            Stmt::WhileLoop {
+                condition: Box::new(condition),
+                body: Box::new(Stmt::Block(vec![body, Stmt::Expr(Box::new(iterator))])),
+            },
         ]))
     }
 
@@ -138,9 +146,17 @@ impl Parser {
         let body = Box::new(self.statement()?);
         if self.match_tokens(&[TokenKind::Else]) {
             let else_branch = Box::new(self.statement()?);
-            Ok(Stmt::if_else(condition, body, Some(else_branch)))
+            Ok(Stmt::IfElse {
+                condition,
+                body,
+                else_branch: Some(else_branch),
+            })
         } else {
-            Ok(Stmt::if_else(condition, body, None))
+            Ok(Stmt::IfElse {
+                condition,
+                body,
+                else_branch: None,
+            })
         }
     }
 
@@ -150,12 +166,27 @@ impl Parser {
         Ok(Stmt::Print(Box::new(expr)))
     }
 
+    fn return_statement(&mut self) -> LoxResult<Stmt> {
+        let value = if self.check(TokenKind::Semicolon) {
+            Expr::Literal(Token::new(
+                TokenKind::Nil,
+                Some("nil".to_string()),
+                None,
+                self.previous().line,
+            ))
+        } else {
+            self.expression()?
+        };
+        self.consume(TokenKind::Semicolon, "Expected a semicolon")?;
+        Ok(Stmt::Return(Box::new(value)))
+    }
+
     fn while_statement(&mut self) -> LoxResult<Stmt> {
         self.consume(TokenKind::LeftParen, "Expected opening parenthesis")?;
         let condition = Box::new(self.expression()?);
         self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
         let body = Box::new(self.statement()?);
-        Ok(Stmt::while_loop(condition, body))
+        Ok(Stmt::WhileLoop { condition, body })
     }
 
     fn block(&mut self) -> LoxResult<Stmt> {
@@ -164,7 +195,7 @@ impl Parser {
             statements.push(self.declaration()?);
         }
         self.consume(TokenKind::RightBrace, "Expected closing brace")?;
-        Ok(Stmt::block(statements))
+        Ok(Stmt::Block(statements))
     }
 
     /**
@@ -180,9 +211,12 @@ impl Parser {
         if self.match_tokens(&[TokenKind::Equal]) {
             if let Expr::Identifier(name) = left {
                 let right = self.assignemnt()?;
-                left = Expr::assignment(name, Box::new(right));
+                left = Expr::Assignment {
+                    name,
+                    value: Box::new(right),
+                };
             } else {
-                return Err(LoxError::RuntimeError("Invalid assignment target".into()));
+                return Err(LoxError::Runtime("Invalid assignment target".into()));
             }
         }
         Ok(left)
@@ -193,7 +227,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Or]) {
             let operator = self.previous().clone();
             let right = self.logic_and()?;
-            left = Expr::logical(operator, Box::new(left), Box::new(right));
+            left = Expr::Logical {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -203,7 +241,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::And]) {
             let operator = self.previous().clone();
             let right = self.equality()?;
-            left = Expr::logical(operator, Box::new(left), Box::new(right));
+            left = Expr::Logical {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -213,7 +255,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::BangEqual, TokenKind::EqualEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            left = Expr::binary(operator, Box::new(left), Box::new(right));
+            left = Expr::Binary {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -228,7 +274,11 @@ impl Parser {
         ]) {
             let operator = self.previous().clone();
             let right = self.term()?;
-            left = Expr::binary(operator, Box::new(left), Box::new(right))
+            left = Expr::Binary {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -238,7 +288,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Minus, TokenKind::Plus]) {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            left = Expr::binary(operator, Box::new(left), Box::new(right));
+            left = Expr::Binary {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -248,7 +302,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Slash, TokenKind::Star]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            left = Expr::binary(operator, Box::new(left), Box::new(right));
+            left = Expr::Binary {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
         }
         Ok(left)
     }
@@ -257,7 +315,10 @@ impl Parser {
         if self.match_tokens(&[TokenKind::Bang, TokenKind::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            Ok(Expr::unary(operator, Box::new(right)))
+            Ok(Expr::Unary {
+                operator,
+                right: Box::new(right),
+            })
         } else {
             self.call()
         }
@@ -271,7 +332,7 @@ impl Parser {
                 loop {
                     arguments.push(self.expression()?);
                     if arguments.len() > MAX_ARGUMENTS {
-                        return Err(LoxError::RuntimeError(
+                        return Err(LoxError::Runtime(
                             "Exceeded maximum number of arguments".into(),
                         ));
                     }
@@ -281,7 +342,10 @@ impl Parser {
                 }
                 self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
             }
-            left = Expr::call(Box::new(left), arguments);
+            left = Expr::Call {
+                callee: Box::new(left),
+                arguments,
+            };
         }
         Ok(left)
     }
@@ -294,13 +358,13 @@ impl Parser {
             TokenKind::False,
             TokenKind::Nil,
         ]) {
-            Ok(Expr::literal(self.previous().clone()))
+            Ok(Expr::Literal(self.previous().clone()))
         } else if self.match_tokens(&[TokenKind::Identifier]) {
-            Ok(Expr::identifier(self.previous().clone()))
+            Ok(Expr::Identifier(self.previous().clone()))
         } else if self.match_tokens(&[TokenKind::LeftParen]) {
             let expr = self.expression()?;
             self.consume(TokenKind::RightParen, "Expected closing ')'")?;
-            Ok(Expr::grouping(Box::new(expr)))
+            Ok(Expr::Grouping(Box::new(expr)))
         } else {
             Err(self.syntax_error("Expected expression", self.peek().line))
         }
@@ -348,7 +412,7 @@ impl Parser {
     }
 
     fn syntax_error(&self, message: &str, line: u32) -> LoxError {
-        LoxError::SyntaxError(SyntaxError::new(message.into(), line))
+        LoxError::Syntax(SyntaxError::new(message.into(), line))
     }
 
     fn consume(&mut self, kind: TokenKind, err_msg: &str) -> LoxResult<&Token> {
@@ -483,9 +547,15 @@ mod test {
         let ScanResult { tokens, errors: _ } = Scanner::scan(
             r#"
             fun greet(name) {
-                print "Hello, " + name + "!";
+                fun greeting() {
+                    return "Hello, " + name + "!";
+                }
+                print greeting();
             }
-            greet("world");
+            fun get_name() {
+                return "world";
+            }
+            greet(get_name());
         "#,
         );
         let ParseResult { statements, errors } = Parser::parse(tokens);
@@ -493,6 +563,6 @@ mod test {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 2);
+        assert_eq!(statements.len(), 3);
     }
 }

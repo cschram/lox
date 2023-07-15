@@ -1,4 +1,4 @@
-use super::{value::*, ast::*};
+use super::value::*;
 use std::{
     collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
@@ -12,11 +12,10 @@ pub fn globals() -> HashMap<String, LoxValue> {
             name: Some("time".into()),
             params: vec![],
             body: FunctionBody::Native(|_, _| {
-                    let now = SystemTime::now();
-                    let elapsed = now.duration_since(UNIX_EPOCH)?;
-                    Ok(LoxValue::Number(elapsed.as_millis() as f64))
-                }
-            ),
+                let now = SystemTime::now();
+                let elapsed = now.duration_since(UNIX_EPOCH)?;
+                Ok(LoxValue::Number(elapsed.as_millis() as f64))
+            }),
         },
     );
     globals

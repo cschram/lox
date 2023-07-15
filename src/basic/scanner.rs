@@ -1,4 +1,4 @@
-use std::{fmt::Display, mem::replace};
+use std::{fmt::Display, mem::take};
 
 use super::error::*;
 
@@ -90,7 +90,7 @@ impl Token {
     pub fn lexeme_str(&self) -> String {
         match &self.lexeme {
             Some(lexeme) => lexeme.clone(),
-            None => "".into()
+            None => "".into(),
         }
     }
 }
@@ -145,8 +145,8 @@ impl Scanner {
             scanner.line as u32 + 1,
         ));
         ScanResult {
-            tokens: replace(&mut scanner.tokens, vec![]),
-            errors: replace(&mut scanner.errors, vec![]),
+            tokens: take(&mut scanner.tokens),
+            errors: take(&mut scanner.errors),
         }
     }
 
@@ -333,11 +333,7 @@ impl Scanner {
             true
         } else if *self.peek() == '.' {
             if let Some(next) = self.peek_next() {
-                if next.is_ascii_digit() {
-                    true
-                } else {
-                    false
-                }
+                next.is_ascii_digit()
             } else {
                 false
             }
