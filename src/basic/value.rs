@@ -4,9 +4,8 @@ use super::{
     error::*,
     scanner::{Literal, Token},
 };
-use std::rc::Rc;
 
-pub type NativeFunction = fn(&mut Rc<Environment>, Vec<LoxValue>) -> LoxResult<LoxValue>;
+pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum FunctionBody {
@@ -19,7 +18,7 @@ pub struct LoxFunction {
     pub name: Option<String>,
     pub params: Vec<Token>,
     pub body: FunctionBody,
-    pub closure: Option<Rc<Environment>>,
+    pub closure: Option<ScopeHandle>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -139,6 +138,12 @@ impl From<f64> for LoxValue {
 impl From<String> for LoxValue {
     fn from(value: String) -> Self {
         Self::String(value)
+    }
+}
+
+impl From<&str> for LoxValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.into())
     }
 }
 

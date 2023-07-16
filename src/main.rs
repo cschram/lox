@@ -2,6 +2,9 @@ mod basic;
 
 use crate::basic::{Lox, LoxError};
 
+#[macro_use]
+extern crate lazy_static;
+
 fn main() -> Result<(), LoxError> {
     simple_logger::init().unwrap();
 
