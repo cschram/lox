@@ -168,12 +168,12 @@ impl Parser {
 
     fn return_statement(&mut self) -> LoxResult<Stmt> {
         let value = if self.check(TokenKind::Semicolon) {
-            Expr::Literal(Token::new(
+            ExprKind::Literal(Token::new(
                 TokenKind::Nil,
                 Some("nil".to_string()),
                 None,
                 self.previous().line,
-            ))
+            )).into()
         } else {
             self.expression()?
         };
@@ -209,12 +209,12 @@ impl Parser {
     fn assignemnt(&mut self) -> LoxResult<Expr> {
         let mut left = self.logic_or()?;
         if self.match_tokens(&[TokenKind::Equal]) {
-            if let Expr::Identifier(name) = left {
+            if let ExprKind::Identifier(name) = left.kind {
                 let right = self.assignemnt()?;
-                left = Expr::Assignment {
+                left = ExprKind::Assignment {
                     name,
                     value: Box::new(right),
-                };
+                }.into();
             } else {
                 return Err(LoxError::Runtime("Invalid assignment target".into()));
             }
@@ -227,11 +227,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Or]) {
             let operator = self.previous().clone();
             let right = self.logic_and()?;
-            left = Expr::Logical {
+            left = ExprKind::Logical {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -241,11 +241,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::And]) {
             let operator = self.previous().clone();
             let right = self.equality()?;
-            left = Expr::Logical {
+            left = ExprKind::Logical {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -255,11 +255,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::BangEqual, TokenKind::EqualEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison()?;
-            left = Expr::Binary {
+            left = ExprKind::Binary {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -274,11 +274,11 @@ impl Parser {
         ]) {
             let operator = self.previous().clone();
             let right = self.term()?;
-            left = Expr::Binary {
+            left = ExprKind::Binary {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -288,11 +288,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Minus, TokenKind::Plus]) {
             let operator = self.previous().clone();
             let right = self.factor()?;
-            left = Expr::Binary {
+            left = ExprKind::Binary {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -302,11 +302,11 @@ impl Parser {
         while self.match_tokens(&[TokenKind::Slash, TokenKind::Star]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            left = Expr::Binary {
+            left = ExprKind::Binary {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -315,10 +315,10 @@ impl Parser {
         if self.match_tokens(&[TokenKind::Bang, TokenKind::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
-            Ok(Expr::Unary {
+            Ok(ExprKind::Unary {
                 operator,
                 right: Box::new(right),
-            })
+            }.into())
         } else {
             self.call()
         }
@@ -342,10 +342,10 @@ impl Parser {
                 }
                 self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
             }
-            left = Expr::Call {
+            left = ExprKind::Call {
                 callee: Box::new(left),
                 arguments,
-            };
+            }.into();
         }
         Ok(left)
     }
@@ -358,13 +358,13 @@ impl Parser {
             TokenKind::False,
             TokenKind::Nil,
         ]) {
-            Ok(Expr::Literal(self.previous().clone()))
+            Ok(ExprKind::Literal(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::Identifier]) {
-            Ok(Expr::Identifier(self.previous().clone()))
+            Ok(ExprKind::Identifier(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::LeftParen]) {
             let expr = self.expression()?;
             self.consume(TokenKind::RightParen, "Expected closing ')'")?;
-            Ok(Expr::Grouping(Box::new(expr)))
+            Ok(ExprKind::Grouping(Box::new(expr)).into())
         } else {
             Err(self.syntax_error("Expected expression", self.peek().line))
         }

@@ -11,14 +11,22 @@ pub struct Scope {
 }
 
 pub struct Environment {
+    globals: HashMap<String, LoxValue>,
     scopes: Vec<Option<Scope>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
+            globals: HashMap::new(),
             scopes: vec![],
         }
+    }
+
+    pub fn get_global(&self, key: String) -> Option<LoxValue> {
+        self.globals.get(&key)
+            .or_else(|| BUILTINS.get(&key))
+            .map(|value| value.clone())
     }
 
     pub fn new_scope(&mut self, parent: Option<ScopeHandle>) -> ScopeHandle {
@@ -46,6 +54,29 @@ impl Environment {
         self.scopes[handle.0] = None;
     }
 
+    pub fn parent_scope(&self, handle: ScopeHandle) -> Option<ScopeHandle> {
+        self.get_scope(handle)
+            .and_then(|scope| scope.parent)
+    }
+
+    pub fn ancestor_scope(&self, handle: ScopeHandle, distance: u128) -> Option<ScopeHandle> {
+        if distance > 0 {
+            let parent = self.parent_scope(handle)?;
+            self.ancestor_scope(parent, distance - 1)
+        } else {
+            Some(handle)
+        }
+    }
+
+    pub fn root_scope(&self, handle: ScopeHandle) -> ScopeHandle {
+        match self.parent_scope(handle) {
+            Some(parent) => {
+                self.root_scope(parent)
+            },
+            None => handle
+        }
+    }
+
     // TODO: Value vs Reference semantics
     pub fn get(&self, handle: ScopeHandle, key: &str) -> Option<LoxValue> {
         let scope = self.get_scope(handle)?;
@@ -59,6 +90,13 @@ impl Environment {
                     None => self.get_builtin(key)
                 }
             })
+    }
+
+    pub fn get_from(&self, handle: ScopeHandle, key: &str) -> Option<LoxValue> {
+        let scope = self.get_scope(handle)?;
+        scope.vars.get(key)
+            .map(|value| value.clone())
+            .or_else(|| self.get_builtin(key))
     }
 
     pub fn insert(&mut self, handle: ScopeHandle, key: String, value: LoxValue) {
@@ -133,5 +171,14 @@ mod test {
         env.insert(inner_scope, "foo".into(), "three".into());
         assert!(env.get(inner_scope, "foo").unwrap() == "three".into());
         assert!(env.get(inner_scope, "bar").unwrap() == "two".into());
+    }
+
+    #[test]
+    fn ancestors() {
+        let mut env = Environment::new();
+        let one = env.new_scope(None);
+        let two = env.new_scope(Some(one));
+        let three = env.new_scope(Some(two));
+        assert!(env.ancestor_scope(three, 2).unwrap() == one);
     }
 }

@@ -28,6 +28,8 @@ pub enum LoxError {
     SystemTime(#[from] std::time::SystemTimeError),
     #[error("{0}")]
     Syntax(SyntaxError),
+    #[error("Resolution Error: {0}")]
+    Resolution(String),
     #[error("Runtime Error: {0}")]
     Runtime(String),
 }

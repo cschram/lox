@@ -3,13 +3,15 @@ mod environment;
 mod error;
 mod builtins;
 mod parser;
+mod resolver;
 mod scanner;
 mod value;
 
 pub use self::error::*;
-use self::{ast::*, environment::*, parser::*, scanner::*, value::*};
+use self::{ast::*, environment::*, parser::*, resolver::*, scanner::*, value::*};
 use log::{error, info};
 use std::{
+    collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
 };
@@ -17,6 +19,7 @@ use std::{
 pub struct Lox {
     env: Environment,
     stack: Vec<LoxValue>,
+    locals: Locals,
 }
 
 impl Lox {
@@ -24,6 +27,7 @@ impl Lox {
         Self {
             env: Environment::new(),
             stack: vec![],
+            locals: HashMap::new(),
         }
     }
 
@@ -47,6 +51,9 @@ impl Lox {
                 error!("Error: {}", err.to_string());
             }
             return Err(LoxError::Runtime("Syntax errors encountered".into()));
+        }
+        for (key, value) in Resolver::bind(&statements)?.drain() {
+            self.locals.insert(key, value);
         }
         let scope = self.env.new_scope(None);
         for stmt in statements.iter() {
@@ -134,9 +141,9 @@ impl Lox {
     }
 
     fn evaluate_expr(&mut self, scope: ScopeHandle, expr: &Expr) -> LoxResult<LoxValue> {
-        match expr {
-            Expr::Literal(value) => Ok(LoxValue::from(value.clone())),
-            Expr::Unary { operator, right } => match operator.kind {
+        match &expr.kind {
+            ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
+            ExprKind::Unary { operator, right } => match operator.kind {
                 TokenKind::Bang => {
                     let right_value = self.evaluate_expr(scope, right)?.is_truthy();
                     Ok(LoxValue::Boolean(!right_value))
@@ -146,23 +153,30 @@ impl Lox {
                     operator
                 ))),
             },
-            Expr::Binary {
+            ExprKind::Binary {
                 operator,
                 left,
                 right,
             } => self.evaluate_binary_expr(scope, operator, left, right),
-            Expr::Grouping(inner) => self.evaluate_expr(scope, inner),
-            Expr::Identifier(name) => {
-                self.env
-                    .get(scope, &name.lexeme_str())
+            ExprKind::Grouping(inner) => self.evaluate_expr(scope, inner),
+            ExprKind::Identifier(name) => {
+                let scope = match self.locals.get(&expr.id()) {
+                    Some(distance) => {
+                        self.env.ancestor_scope(scope, *distance).expect("Invalid ancestor scope")
+                    },
+                    None => {
+                        self.env.root_scope(scope)
+                    }
+                };
+                self.env.get_from(scope, &name.lexeme_str())
                     .ok_or(LoxError::Runtime(format!("Undefined variable \"{}\"", name.lexeme_str())))
             },
-            Expr::Assignment { name, value } => {
+            ExprKind::Assignment { name, value } => {
                 let val = self.evaluate_expr(scope, value)?;
                 self.env.assign(scope, name.lexeme_str(), val.clone());
                 Ok(val)
             }
-            Expr::Logical {
+            ExprKind::Logical {
                 operator,
                 left,
                 right,
@@ -186,7 +200,7 @@ impl Lox {
                     operator.lexeme_str()
                 ))),
             },
-            Expr::Call { callee, arguments } => {
+            ExprKind::Call { callee, arguments } => {
                 if let LoxValue::Function(func) = self.evaluate_expr(scope, callee)?
                 {
                     if arguments.len() != func.params.len() {
@@ -512,6 +526,32 @@ mod test {
             assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "1");
             assert_eq!(entries[1].body, "2")
+        });
+        Ok(())
+    }
+
+    #[test]
+    fn shadowing() -> LoxResult {
+        mock_logger::init();
+        let mut lox = Lox::new();
+        lox.exec(
+            r#"
+            var a = "global";
+            {
+                fun print_a() {
+                    print a;
+                }
+
+                print_a();
+                var a = "block";
+                print_a();
+            }
+            "#
+        )?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries[0].body, "global");
+            assert_eq!(entries[1].body, "global")
         });
         Ok(())
     }

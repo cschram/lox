@@ -1,8 +1,21 @@
 use super::scanner::Token;
-use std::fmt::Display;
+use std::{cell::RefCell, fmt::Display, hash::{Hash, Hasher}};
+
+thread_local! {
+    static EXPR_COUNT: RefCell<u128> = RefCell::new(0);
+}
+
+fn get_expr_id() -> u128 {
+    let mut id = 0;
+    EXPR_COUNT.with(|cell| {
+        id = cell.take();
+        cell.replace(id + 1);
+    });
+    id
+}
 
 #[derive(PartialEq, Clone)]
-pub enum Expr {
+pub enum ExprKind {
     Literal(Token),
     Unary {
         operator: Token,
@@ -30,11 +43,36 @@ pub enum Expr {
     },
 }
 
+#[derive(PartialEq, Clone)]
+pub struct Expr {
+    pub kind: ExprKind,
+    _id: u128,
+}
+
+impl Expr {
+    pub fn new(kind: ExprKind) -> Self {
+        Self {
+            kind,
+            _id: get_expr_id(),
+        }
+    }
+
+    pub fn id(&self) -> u128 {
+        self._id
+    }
+}
+
+impl From<ExprKind> for Expr {
+    fn from(value: ExprKind) -> Self {
+        Expr::new(value)
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Expr::Literal(value) => write!(f, "{}", value.lexeme_str()),
-            Expr::Unary { operator, right } => {
+        match &self.kind {
+            ExprKind::Literal(value) => write!(f, "{}", value.lexeme_str()),
+            ExprKind::Unary { operator, right } => {
                 write!(
                     f,
                     "({} {})",
@@ -42,7 +80,7 @@ impl Display for Expr {
                     right,
                 )
             }
-            Expr::Binary {
+            ExprKind::Binary {
                 operator,
                 left,
                 right,
@@ -55,16 +93,16 @@ impl Display for Expr {
                     right
                 )
             }
-            Expr::Grouping(inner) => {
+            ExprKind::Grouping(inner) => {
                 write!(f, "{}", inner)
             }
-            Expr::Identifier(name) => {
+            ExprKind::Identifier(name) => {
                 write!(f, "{}", name.lexeme_str())
             }
-            Expr::Assignment { name, value } => {
+            ExprKind::Assignment { name, value } => {
                 write!(f, "(= {} {})", name, value)
             }
-            Expr::Logical {
+            ExprKind::Logical {
                 operator,
                 left,
                 right,
@@ -77,7 +115,7 @@ impl Display for Expr {
                     right
                 )
             }
-            Expr::Call { callee, arguments } => {
+            ExprKind::Call { callee, arguments } => {
                 write!(
                     f,
                     "(call {} {})",
