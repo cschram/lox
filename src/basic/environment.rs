@@ -4,6 +4,8 @@ use std::collections::HashMap;
 #[derive(PartialEq, Clone, Copy)]
 pub struct ScopeHandle(usize);
 
+pub const ROOT_SCOPE: ScopeHandle = ScopeHandle(0);
+
 pub struct Scope {
     vars: HashMap<String, LoxValue>,
     parent: Option<ScopeHandle>,
@@ -11,22 +13,20 @@ pub struct Scope {
 }
 
 pub struct Environment {
-    globals: HashMap<String, LoxValue>,
     scopes: Vec<Option<Scope>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
-            globals: HashMap::new(),
-            scopes: vec![],
+            scopes: vec![
+                Some(Scope {
+                    vars: HashMap::new(),
+                    parent: None,
+                    children: vec![],
+                })
+            ],
         }
-    }
-
-    pub fn get_global(&self, key: String) -> Option<LoxValue> {
-        self.globals.get(&key)
-            .or_else(|| BUILTINS.get(&key))
-            .map(|value| value.clone())
     }
 
     pub fn new_scope(&mut self, parent: Option<ScopeHandle>) -> ScopeHandle {
@@ -68,52 +68,24 @@ impl Environment {
         }
     }
 
-    pub fn root_scope(&self, handle: ScopeHandle) -> ScopeHandle {
-        match self.parent_scope(handle) {
-            Some(parent) => {
-                self.root_scope(parent)
-            },
-            None => handle
-        }
-    }
-
     // TODO: Value vs Reference semantics
-    pub fn get(&self, handle: ScopeHandle, key: &str) -> Option<LoxValue> {
-        let scope = self.get_scope(handle)?;
-        scope.vars.get(key)
-            .map(|value| value.clone())
-            .or_else(|| {
-                match scope.parent {
-                    Some(parent) => {
-                        self.get(parent, key)
-                    },
-                    None => self.get_builtin(key)
-                }
-            })
-    }
-
-    pub fn get_from(&self, handle: ScopeHandle, key: &str) -> Option<LoxValue> {
-        let scope = self.get_scope(handle)?;
+    pub fn get(&self, handle: Option<ScopeHandle>, key: &str) -> Option<LoxValue> {
+        let scope = self.get_scope(handle.unwrap_or(ROOT_SCOPE))?;
         scope.vars.get(key)
             .map(|value| value.clone())
             .or_else(|| self.get_builtin(key))
     }
 
-    pub fn insert(&mut self, handle: ScopeHandle, key: String, value: LoxValue) {
-        if let Some(scope) = self.get_scope_mut(handle) {
+    pub fn declare(&mut self, handle: Option<ScopeHandle>, key: String, value: LoxValue) {
+        if let Some(scope) = self.get_scope_mut(handle.unwrap_or(ROOT_SCOPE)) {
             scope.vars.insert(key, value);
         }
     }
 
-    pub fn assign(&mut self, handle: ScopeHandle, key: String, value: LoxValue) -> Option<LoxValue> {
-        let scope = self.get_scope_mut(handle).expect("Invalid scope");
-        if scope.vars.contains_key(&key) {
-            scope.vars.insert(key, value)
-        } else {
-            scope.parent.and_then(|parent| {
-                self.assign(parent, key, value)
-            })
-        }
+    pub fn assign(&mut self, handle: Option<ScopeHandle>, key: String, value: LoxValue) -> Option<LoxValue> {
+        let scope = self.get_scope_mut(handle.unwrap_or(ROOT_SCOPE)).expect("Invalid scope");
+        assert!(scope.vars.contains_key(&key), "Variable assignment before declaration");
+        scope.vars.insert(key, value)
     }
 
     fn get_scope(&self, handle: ScopeHandle) -> Option<&Scope> {
@@ -155,9 +127,9 @@ mod test {
     fn basic() {
         let mut env = Environment::new();
         let scope = env.new_scope(None);
-        env.insert(scope, "foo".into(), "one".into());
+        env.declare(scope, "foo".into(), "one".into());
         assert!(env.get(scope, "foo").unwrap() == "one".into());
-        env.insert(scope, "foo".into(), "two".into());
+        env.declare(scope, "foo".into(), "two".into());
         assert!(env.get(scope, "foo").unwrap() == "two".into());
     }
 
@@ -165,10 +137,10 @@ mod test {
     fn nested() {
         let mut env = Environment::new();
         let outer_scope = env.new_scope(None);
-        env.insert(outer_scope, "foo".into(), "one".into());
-        env.insert(outer_scope, "bar".into(), "two".into());
+        env.declare(outer_scope, "foo".into(), "one".into());
+        env.declare(outer_scope, "bar".into(), "two".into());
         let inner_scope = env.new_scope(Some(outer_scope));
-        env.insert(inner_scope, "foo".into(), "three".into());
+        env.declare(inner_scope, "foo".into(), "three".into());
         assert!(env.get(inner_scope, "foo").unwrap() == "three".into());
         assert!(env.get(inner_scope, "bar").unwrap() == "two".into());
     }

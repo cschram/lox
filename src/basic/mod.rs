@@ -91,7 +91,7 @@ impl Lox {
                     Some(expr) => self.evaluate_expr(scope, expr)?.clone(),
                     None => LoxValue::Nil,
                 };
-                self.env.insert(scope, name.lexeme_str(), value);
+                self.env.declare(scope, name.lexeme_str(), value);
                 Ok(())
             }
             Stmt::Block(statements) => {
@@ -129,7 +129,7 @@ impl Lox {
                     body: FunctionBody::Block(body.clone()),
                     closure: Some(scope),
                 }.into();
-                self.env.insert(scope, identifier, fun);
+                self.env.declare(scope, identifier, fun);
                 Ok(())
             }
             Stmt::Return(expr) => {
@@ -218,7 +218,7 @@ impl Lox {
                             FunctionBody::Block(statements) => {
                                 let closure = func.closure.expect("Function should have a closure");
                                 for (i, arg) in args.drain(0..).enumerate() {
-                                    self.env.insert(closure, func.params[i].lexeme_str(), arg);
+                                    self.env.declare(closure, func.params[i].lexeme_str(), arg);
                                 }
                                 self.stack.push(LoxValue::Nil);
                                 for stmt in statements.iter() {
