@@ -91,7 +91,7 @@ impl Lox {
                     Some(expr) => self.evaluate_expr(scope, expr)?.clone(),
                     None => LoxValue::Nil,
                 };
-                self.env.declare(scope, name.lexeme_str(), value);
+                self.env.declare(Some(scope), name.lexeme_str(), value);
                 Ok(())
             }
             Stmt::Block(statements) => {
@@ -129,7 +129,7 @@ impl Lox {
                     body: FunctionBody::Block(body.clone()),
                     closure: Some(scope),
                 }.into();
-                self.env.declare(scope, identifier, fun);
+                self.env.declare(Some(scope), identifier, fun);
                 Ok(())
             }
             Stmt::Return(expr) => {
@@ -165,15 +165,15 @@ impl Lox {
                         self.env.ancestor_scope(scope, *distance).expect("Invalid ancestor scope")
                     },
                     None => {
-                        self.env.root_scope(scope)
+                        GLOBAL_SCOPE
                     }
                 };
-                self.env.get_from(scope, &name.lexeme_str())
+                self.env.get(Some(scope), &name.lexeme_str())
                     .ok_or(LoxError::Runtime(format!("Undefined variable \"{}\"", name.lexeme_str())))
             },
             ExprKind::Assignment { name, value } => {
                 let val = self.evaluate_expr(scope, value)?;
-                self.env.assign(scope, name.lexeme_str(), val.clone());
+                self.env.assign(Some(scope), name.lexeme_str(), val.clone());
                 Ok(val)
             }
             ExprKind::Logical {
@@ -218,7 +218,7 @@ impl Lox {
                             FunctionBody::Block(statements) => {
                                 let closure = func.closure.expect("Function should have a closure");
                                 for (i, arg) in args.drain(0..).enumerate() {
-                                    self.env.declare(closure, func.params[i].lexeme_str(), arg);
+                                    self.env.declare(Some(closure), func.params[i].lexeme_str(), arg);
                                 }
                                 self.stack.push(LoxValue::Nil);
                                 for stmt in statements.iter() {

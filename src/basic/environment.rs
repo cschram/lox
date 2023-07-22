@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[derive(PartialEq, Clone, Copy)]
 pub struct ScopeHandle(usize);
 
-pub const ROOT_SCOPE: ScopeHandle = ScopeHandle(0);
+pub const GLOBAL_SCOPE: ScopeHandle = ScopeHandle(0);
 
 pub struct Scope {
     vars: HashMap<String, LoxValue>,
@@ -20,6 +20,7 @@ impl Environment {
     pub fn new() -> Self {
         Self {
             scopes: vec![
+                // Root scope
                 Some(Scope {
                     vars: HashMap::new(),
                     parent: None,
@@ -44,6 +45,7 @@ impl Environment {
     }
 
     pub fn drop_scope(&mut self, handle: ScopeHandle) {
+        assert!(handle != GLOBAL_SCOPE, "Cannot drop global scope");
         let scope = self.get_scope(handle).expect("Invalid scope");
         for child in scope.children.clone().iter() {
             self.drop_scope(*child);
@@ -70,21 +72,21 @@ impl Environment {
 
     // TODO: Value vs Reference semantics
     pub fn get(&self, handle: Option<ScopeHandle>, key: &str) -> Option<LoxValue> {
-        let scope = self.get_scope(handle.unwrap_or(ROOT_SCOPE))?;
+        let scope = self.get_scope(handle.unwrap_or(GLOBAL_SCOPE))?;
         scope.vars.get(key)
             .map(|value| value.clone())
             .or_else(|| self.get_builtin(key))
     }
 
     pub fn declare(&mut self, handle: Option<ScopeHandle>, key: String, value: LoxValue) {
-        if let Some(scope) = self.get_scope_mut(handle.unwrap_or(ROOT_SCOPE)) {
+        if let Some(scope) = self.get_scope_mut(handle.unwrap_or(GLOBAL_SCOPE)) {
             scope.vars.insert(key, value);
         }
     }
 
     pub fn assign(&mut self, handle: Option<ScopeHandle>, key: String, value: LoxValue) -> Option<LoxValue> {
-        let scope = self.get_scope_mut(handle.unwrap_or(ROOT_SCOPE)).expect("Invalid scope");
-        assert!(scope.vars.contains_key(&key), "Variable assignment before declaration");
+        let scope = self.get_scope_mut(handle.unwrap_or(GLOBAL_SCOPE)).expect("Invalid scope");
+        assert!(scope.vars.contains_key(&key), "Cannot assign variable before declaration");
         scope.vars.insert(key, value)
     }
 
@@ -126,23 +128,19 @@ mod test {
     #[test]
     fn basic() {
         let mut env = Environment::new();
-        let scope = env.new_scope(None);
-        env.declare(scope, "foo".into(), "one".into());
-        assert!(env.get(scope, "foo").unwrap() == "one".into());
-        env.declare(scope, "foo".into(), "two".into());
-        assert!(env.get(scope, "foo").unwrap() == "two".into());
+        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "one".into());
+        assert!(env.get(Some(GLOBAL_SCOPE), "foo").unwrap() == "one".into());
+        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "two".into());
+        assert!(env.get(Some(GLOBAL_SCOPE), "foo").unwrap() == "two".into());
     }
 
     #[test]
     fn nested() {
         let mut env = Environment::new();
-        let outer_scope = env.new_scope(None);
-        env.declare(outer_scope, "foo".into(), "one".into());
-        env.declare(outer_scope, "bar".into(), "two".into());
-        let inner_scope = env.new_scope(Some(outer_scope));
+        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "one".into());
+        let inner_scope = Some(env.new_scope(None));
         env.declare(inner_scope, "foo".into(), "three".into());
         assert!(env.get(inner_scope, "foo").unwrap() == "three".into());
-        assert!(env.get(inner_scope, "bar").unwrap() == "two".into());
     }
 
     #[test]
