@@ -25,7 +25,7 @@ impl Environment {
                     vars: HashMap::new(),
                     parent: None,
                     children: vec![],
-                })
+                }),
             ],
         }
     }
@@ -39,7 +39,10 @@ impl Environment {
         };
         self.scopes[id.0] = Some(scope);
         if let Some(id) = parent {
-            self.get_scope_mut(id).expect("Invalid scope").children.push(id);
+            self.get_scope_mut(id)
+                .expect("Invalid scope")
+                .children
+                .push(id);
         }
         id
     }
@@ -57,11 +60,11 @@ impl Environment {
     }
 
     pub fn parent_scope(&self, handle: ScopeHandle) -> Option<ScopeHandle> {
-        self.get_scope(handle)
-            .and_then(|scope| scope.parent)
+        self.get_scope(handle).and_then(|scope| scope.parent)
     }
 
-    pub fn ancestor_scope(&self, handle: ScopeHandle, distance: u128) -> Option<ScopeHandle> {
+    pub fn ancestor_scope(&self, handle: ScopeHandle, distance: usize) -> Option<ScopeHandle> {
+        println!("{}", distance);
         if distance > 0 {
             let parent = self.parent_scope(handle)?;
             self.ancestor_scope(parent, distance - 1)
@@ -73,7 +76,9 @@ impl Environment {
     // TODO: Value vs Reference semantics
     pub fn get(&self, handle: Option<ScopeHandle>, key: &str) -> Option<LoxValue> {
         let scope = self.get_scope(handle.unwrap_or(GLOBAL_SCOPE))?;
-        scope.vars.get(key)
+        scope
+            .vars
+            .get(key)
             .map(|value| value.clone())
             .or_else(|| self.get_builtin(key))
     }
@@ -84,9 +89,19 @@ impl Environment {
         }
     }
 
-    pub fn assign(&mut self, handle: Option<ScopeHandle>, key: String, value: LoxValue) -> Option<LoxValue> {
-        let scope = self.get_scope_mut(handle.unwrap_or(GLOBAL_SCOPE)).expect("Invalid scope");
-        assert!(scope.vars.contains_key(&key), "Cannot assign variable before declaration");
+    pub fn assign(
+        &mut self,
+        handle: Option<ScopeHandle>,
+        key: String,
+        value: LoxValue,
+    ) -> Option<LoxValue> {
+        let scope = self
+            .get_scope_mut(handle.unwrap_or(GLOBAL_SCOPE))
+            .expect("Invalid scope");
+        assert!(
+            scope.vars.contains_key(&key),
+            "Cannot assign variable before declaration"
+        );
         scope.vars.insert(key, value)
     }
 

@@ -1,11 +1,11 @@
 use super::scanner::Token;
-use std::{cell::RefCell, fmt::Display, hash::{Hash, Hasher}};
+use std::{cell::RefCell, fmt::Display, hash::Hash};
 
 thread_local! {
-    static EXPR_COUNT: RefCell<u128> = RefCell::new(0);
+    static EXPR_COUNT: RefCell<usize> = RefCell::new(0);
 }
 
-fn get_expr_id() -> u128 {
+fn get_expr_id() -> usize {
     let mut id = 0;
     EXPR_COUNT.with(|cell| {
         id = cell.take();
@@ -46,7 +46,7 @@ pub enum ExprKind {
 #[derive(PartialEq, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
-    _id: u128,
+    _id: usize,
 }
 
 impl Expr {
@@ -57,7 +57,7 @@ impl Expr {
         }
     }
 
-    pub fn id(&self) -> u128 {
+    pub fn id(&self) -> usize {
         self._id
     }
 }

@@ -1,21 +1,17 @@
-use super::{
-    ast::*,
-    error::*,
-};
+use super::{ast::*, error::*};
 use std::collections::HashMap;
 
-pub type Locals = HashMap<u128, u128>;
+pub type Locals = HashMap<usize, usize>;
 
 pub struct Resolver {
     stack: Vec<HashMap<String, bool>>,
     locals: Locals,
 }
 
-
 impl Resolver {
     pub fn bind(statements: &[Stmt]) -> LoxResult<Locals> {
         let mut resolver = Resolver {
-            stack: vec![],
+            stack: vec![HashMap::new()],
             locals: HashMap::new(),
         };
         for stmt in statements.iter() {
@@ -32,14 +28,14 @@ impl Resolver {
                     self.bind_stmt(stmt)?;
                 }
                 self.pop();
-            },
+            }
             Stmt::Var { name, initializer } => {
                 self.declare(name.lexeme_str());
                 if let Some(init) = initializer {
                     self.bind_expr(init)?;
                 }
                 self.define(name.lexeme_str());
-            },
+            }
             Stmt::Fun { name, params, body } => {
                 self.define(name.lexeme_str());
                 self.push();
@@ -50,26 +46,32 @@ impl Resolver {
                     self.bind_stmt(stmt)?;
                 }
                 self.pop();
-            },
+            }
             Stmt::Expr(expr) => {
                 self.bind_expr(expr)?;
-            },
-            Stmt::IfElse { condition: _, body, else_branch } => {
+            }
+            Stmt::IfElse {
+                condition: _,
+                body,
+                else_branch,
+            } => {
                 self.bind_stmt(body)?;
                 if let Some(body) = else_branch {
                     self.bind_stmt(body)?;
                 }
-            },
+            }
             Stmt::Print(expr) => {
                 self.bind_expr(expr)?;
-            },
+            }
             Stmt::Return(expr) => {
                 self.bind_expr(expr)?;
-            },
+            }
             Stmt::WhileLoop { condition, body } => {
+                self.push();
                 self.bind_expr(condition)?;
                 self.bind_stmt(body)?;
-            },
+                self.pop();
+            }
         }
         Ok(())
     }
@@ -78,49 +80,60 @@ impl Resolver {
         match &expr.kind {
             ExprKind::Identifier(name) => {
                 if !self.stack.is_empty() && !self.is_defined(&name.lexeme_str()) {
-                    return Err(LoxError::Resolution("Attempted to local variable in its own initializer".into()))
+                    return Err(LoxError::Resolution(
+                        "Attempted to resolve variable in its own initializer".into(),
+                    ));
                 }
                 self.resolve_local(expr, name.lexeme_str());
-            },
+            }
             ExprKind::Assignment { name, value } => {
                 self.bind_expr(value)?;
                 self.resolve_local(expr, name.lexeme_str());
-            },
-            ExprKind::Binary { operator: _, left, right } => {
+            }
+            ExprKind::Binary {
+                operator: _,
+                left,
+                right,
+            } => {
                 self.bind_expr(left)?;
                 self.bind_expr(right)?;
-            },
+            }
             ExprKind::Call { callee, arguments } => {
                 self.bind_expr(callee)?;
                 for arg in arguments.iter() {
                     self.bind_expr(arg)?;
                 }
-            },
+            }
             ExprKind::Grouping(expr) => {
                 self.bind_expr(expr)?;
-            },
-            ExprKind::Logical { operator: _, left, right } => {
+            }
+            ExprKind::Logical {
+                operator: _,
+                left,
+                right,
+            } => {
                 self.bind_expr(left)?;
                 self.bind_expr(right)?;
-            },
+            }
             ExprKind::Unary { operator: _, right } => {
                 self.bind_expr(right)?;
-            },
-            _ => {},
+            }
+            _ => {}
         }
         Ok(())
     }
 
     fn resolve_local(&mut self, expr: &Expr, name: String) {
-        for (i, frame) in self.stack.iter().rev().enumerate() {
+        for (i, frame) in self.stack.iter().enumerate() {
             if frame.contains_key(&name) {
-                self.resolve(expr, i as u128);
+                println!("{}", name);
+                self.resolve(expr, i);
                 break;
             }
         }
     }
 
-    fn resolve(&mut self, expr: &Expr, depth: u128) {
+    fn resolve(&mut self, expr: &Expr, depth: usize) {
         self.locals.insert(expr.id(), depth);
     }
 
@@ -155,9 +168,29 @@ impl Resolver {
     }
 
     fn is_defined(&self, name: &str) -> bool {
-        self.peek()
-            .get(name)
-            .map(|v| *v)
-            .unwrap_or(false)
+        self.peek().get(name).map(|v| *v).unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::super::{parser::*, scanner::*};
+    use super::*;
+
+    #[test]
+    fn resolution() -> LoxResult {
+        let ScanResult { tokens, errors: _ } = Scanner::scan(
+            r#"
+            var pi = 3.14;
+            print pi;
+        "#,
+        );
+        let ParseResult {
+            statements,
+            errors: _,
+        } = Parser::parse(tokens);
+        let locals = Resolver::bind(&statements)?;
+        assert_eq!(locals.len(), 1);
+        Ok(())
     }
 }

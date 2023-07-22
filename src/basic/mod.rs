@@ -1,7 +1,7 @@
 mod ast;
+mod builtins;
 mod environment;
 mod error;
-mod builtins;
 mod parser;
 mod resolver;
 mod scanner;
@@ -128,7 +128,8 @@ impl Lox {
                     params: params.clone(),
                     body: FunctionBody::Block(body.clone()),
                     closure: Some(scope),
-                }.into();
+                }
+                .into();
                 self.env.declare(Some(scope), identifier, fun);
                 Ok(())
             }
@@ -161,18 +162,28 @@ impl Lox {
             ExprKind::Grouping(inner) => self.evaluate_expr(scope, inner),
             ExprKind::Identifier(name) => {
                 let scope = match self.locals.get(&expr.id()) {
-                    Some(distance) => {
-                        self.env.ancestor_scope(scope, *distance).expect("Invalid ancestor scope")
-                    },
-                    None => {
-                        GLOBAL_SCOPE
-                    }
+                    Some(distance) => self
+                        .env
+                        .ancestor_scope(scope, *distance)
+                        .expect("Invalid ancestor scope"),
+                    None => GLOBAL_SCOPE,
                 };
-                self.env.get(Some(scope), &name.lexeme_str())
-                    .ok_or(LoxError::Runtime(format!("Undefined variable \"{}\"", name.lexeme_str())))
-            },
+                self.env
+                    .get(Some(scope), &name.lexeme_str())
+                    .ok_or(LoxError::Runtime(format!(
+                        "Undefined variable \"{}\"",
+                        name.lexeme_str()
+                    )))
+            }
             ExprKind::Assignment { name, value } => {
                 let val = self.evaluate_expr(scope, value)?;
+                let scope = match self.locals.get(&expr.id()) {
+                    Some(distance) => self
+                        .env
+                        .ancestor_scope(scope, *distance)
+                        .expect("Invalid ancestor scope"),
+                    None => GLOBAL_SCOPE,
+                };
                 self.env.assign(Some(scope), name.lexeme_str(), val.clone());
                 Ok(val)
             }
@@ -201,8 +212,7 @@ impl Lox {
                 ))),
             },
             ExprKind::Call { callee, arguments } => {
-                if let LoxValue::Function(func) = self.evaluate_expr(scope, callee)?
-                {
+                if let LoxValue::Function(func) = self.evaluate_expr(scope, callee)? {
                     if arguments.len() != func.params.len() {
                         Err(LoxError::Runtime(format!(
                             "Expected {} arguments, but got {}",
@@ -218,7 +228,11 @@ impl Lox {
                             FunctionBody::Block(statements) => {
                                 let closure = func.closure.expect("Function should have a closure");
                                 for (i, arg) in args.drain(0..).enumerate() {
-                                    self.env.declare(Some(closure), func.params[i].lexeme_str(), arg);
+                                    self.env.declare(
+                                        Some(closure),
+                                        func.params[i].lexeme_str(),
+                                        arg,
+                                    );
                                 }
                                 self.stack.push(LoxValue::Nil);
                                 for stmt in statements.iter() {
@@ -520,7 +534,7 @@ mod test {
               var counter = make_counter();
               counter();
               counter();
-            "#
+            "#,
         )?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -546,7 +560,7 @@ mod test {
                 var a = "block";
                 print_a();
             }
-            "#
+            "#,
         )?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
