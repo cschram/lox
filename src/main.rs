@@ -3,15 +3,14 @@ mod basic;
 mod test_scripts;
 
 use crate::basic::{Lox, LoxError};
+use std::env;
 
 #[macro_use]
 extern crate lazy_static;
 
 fn main() -> Result<(), LoxError> {
     simple_logger::init().unwrap();
-
     let mut lox = Lox::new();
-    lox.exec("1 + (3.5 / 1.2)")?;
-
-    Ok(())
+    let args: Vec<String> = env::args().collect();
+    lox.exec_file(&args[1])
 }

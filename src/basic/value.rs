@@ -1,9 +1,4 @@
-use super::{
-    ast::*,
-    environment::*,
-    error::*,
-    scanner::{Literal, Token},
-};
+use super::{ast::*, environment::*, error::*, scanner::*};
 
 pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
 
@@ -19,6 +14,20 @@ pub struct LoxFunction {
     pub params: Vec<Token>,
     pub body: FunctionBody,
     pub closure: Option<ScopeHandle>,
+}
+
+impl LoxFunction {
+    pub fn native(name: &str, params: Vec<&str>, body: NativeFunction) -> Self {
+        LoxFunction {
+            name: Some(name.into()),
+            params: params
+                .into_iter()
+                .map(|param| Token::new(TokenKind::Identifier, Some(param.into()), None, 0))
+                .collect(),
+            body: FunctionBody::Native(body),
+            closure: None,
+        }
+    }
 }
 
 #[derive(PartialEq, Clone)]

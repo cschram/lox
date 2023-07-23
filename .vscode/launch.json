@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": ["scripts/hello.lox", "world"],
             "cwd": "${workspaceFolder}",
             "env": {
                 "RUST_BACKTRACE": "full"

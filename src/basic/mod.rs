@@ -51,7 +51,7 @@ impl Lox {
         Ok(())
     }
 
-    pub fn _exec_file(&mut self, path: &str) -> LoxResult {
+    pub fn exec_file(&mut self, path: &str) -> LoxResult {
         let file = File::open(path)?;
         let source: String = BufReader::new(file)
             .lines()
@@ -207,9 +207,9 @@ impl Lox {
                 if let LoxValue::Function(func) = self.evaluate_expr(scope, callee)? {
                     if arguments.len() != func.params.len() {
                         Err(LoxError::Runtime(format!(
-                            "Expected {} arguments, but got {}",
+                            "Function \"{}\" takes {} argument(s)",
+                            func.name.unwrap_or("".into()),
                             func.params.len(),
-                            arguments.len(),
                         )))
                     } else {
                         let mut args: Vec<LoxValue> = vec![];
