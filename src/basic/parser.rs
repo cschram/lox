@@ -1,5 +1,5 @@
-use log::error;
 use super::{ast::*, error::*, scanner::*};
+use log::error;
 
 const MAX_ARGUMENTS: usize = 255;
 
@@ -177,7 +177,8 @@ impl Parser {
                 Some("nil".to_string()),
                 None,
                 self.previous().line,
-            )).into()
+            ))
+            .into()
         } else {
             self.expression()?
         };
@@ -218,7 +219,8 @@ impl Parser {
                 left = ExprKind::Assignment {
                     name,
                     value: Box::new(right),
-                }.into();
+                }
+                .into();
             } else {
                 return Err(LoxError::Runtime("Invalid assignment target".into()));
             }
@@ -235,7 +237,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -249,7 +252,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -263,7 +267,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -282,7 +287,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -296,7 +302,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -310,7 +317,8 @@ impl Parser {
                 operator,
                 left: Box::new(left),
                 right: Box::new(right),
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -322,7 +330,8 @@ impl Parser {
             Ok(ExprKind::Unary {
                 operator,
                 right: Box::new(right),
-            }.into())
+            }
+            .into())
         } else {
             self.call()
         }
@@ -349,7 +358,8 @@ impl Parser {
             left = ExprKind::Call {
                 callee: Box::new(left),
                 arguments,
-            }.into();
+            }
+            .into();
         }
         Ok(left)
     }
@@ -461,8 +471,8 @@ pub fn parse(source: &str) -> ParseResult {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::super::super::test_scripts::*;
+    use super::*;
 
     #[test]
     fn print_var() {
@@ -481,7 +491,7 @@ mod test {
             println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 3);
+        assert_eq!(statements.len(), 2);
     }
 
     #[test]

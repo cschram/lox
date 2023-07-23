@@ -141,12 +141,8 @@ impl Scanner {
             self.start = self.current;
             self.scan_token();
         }
-        self.tokens.push(Token::new(
-            TokenKind::Eof,
-            None,
-            None,
-            self.line as u32 + 1,
-        ));
+        self.tokens
+            .push(Token::new(TokenKind::Eof, None, None, self.line as u32 + 1));
         ScanResult {
             tokens: take(&mut self.tokens),
             errors: take(&mut self.errors),
@@ -377,8 +373,8 @@ pub fn scan(source: &str) -> ScanResult {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::super::super::test_scripts::*;
+    use super::*;
 
     #[test]
     fn expressions() {
@@ -422,8 +418,7 @@ mod test {
 
     #[test]
     fn control_flow() {
-        let ScanResult { tokens, errors } = scan(CONTROL_FLOW_TEST,
-        );
+        let ScanResult { tokens, errors } = scan(CONTROL_FLOW_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }

@@ -18,7 +18,8 @@ lazy_static! {
                     Ok(LoxValue::Number(elapsed.as_millis() as f64))
                 }),
                 closure: None,
-            }.into(),
+            }
+            .into(),
         );
         constants
     };

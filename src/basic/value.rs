@@ -58,10 +58,7 @@ impl LoxValue {
     }
 
     pub fn _is_fun(&self) -> bool {
-        matches!(
-            self,
-            Self::Function(_)
-        )
+        matches!(self, Self::Function(_))
     }
 
     pub fn _set_nil(&mut self) {

@@ -4,6 +4,12 @@ use std::collections::HashMap;
 #[derive(PartialEq, Clone, Copy)]
 pub struct ScopeHandle(usize);
 
+impl std::fmt::Display for ScopeHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ScopeHandle({})", self.0)
+    }
+}
+
 pub const GLOBAL_SCOPE: ScopeHandle = ScopeHandle(0);
 
 pub struct Scope {
@@ -47,18 +53,6 @@ impl Environment {
         id
     }
 
-    pub fn drop_scope(&mut self, handle: ScopeHandle) {
-        assert!(handle != GLOBAL_SCOPE, "Cannot drop global scope");
-        let scope = self.get_scope(handle).expect("Invalid scope");
-        for child in scope.children.clone().iter() {
-            self.drop_scope(*child);
-        }
-        if let Some(parent) = self.get_parent_mut(handle) {
-            parent.children.retain(|child| *child != handle);
-        }
-        self.scopes[handle.0] = None;
-    }
-
     pub fn parent_scope(&self, handle: ScopeHandle) -> Option<ScopeHandle> {
         self.get_scope(handle).and_then(|scope| scope.parent)
     }
@@ -78,7 +72,7 @@ impl Environment {
         scope
             .vars
             .get(key)
-            .map(|value| value.clone())
+            .cloned()
             .or_else(|| self.get_builtin(key))
     }
 
@@ -114,14 +108,9 @@ impl Environment {
         self.scopes[handle.0].as_mut()
     }
 
-    fn get_parent_mut(&mut self, handle: ScopeHandle) -> Option<&mut Scope> {
-        assert!(handle.0 < self.scopes.len(), "ScopeId out of range");
-        self.get_scope_mut(self.get_scope(handle)?.parent?)
-    }
-
     // TODO: Don't clone everywhere
     fn get_builtin(&self, key: &str) -> Option<LoxValue> {
-        BUILTINS.get(key).map(|value| value.clone())
+        BUILTINS.get(key).cloned()
     }
 
     fn get_empty(&mut self) -> ScopeHandle {
@@ -142,16 +131,16 @@ mod test {
     #[test]
     fn basic() {
         let mut env = Environment::new();
-        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "one".into());
-        assert!(env.get(Some(GLOBAL_SCOPE), "foo").unwrap() == "one".into());
-        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "two".into());
-        assert!(env.get(Some(GLOBAL_SCOPE), "foo").unwrap() == "two".into());
+        env.declare(None, "foo".into(), "one".into());
+        assert!(env.get(None, "foo").unwrap() == "one".into());
+        env.declare(None, "foo".into(), "two".into());
+        assert!(env.get(None, "foo").unwrap() == "two".into());
     }
 
     #[test]
     fn nested() {
         let mut env = Environment::new();
-        env.declare(Some(GLOBAL_SCOPE), "foo".into(), "one".into());
+        env.declare(None, "foo".into(), "one".into());
         let inner_scope = Some(env.new_scope(None));
         env.declare(inner_scope, "foo".into(), "three".into());
         assert!(env.get(inner_scope, "foo").unwrap() == "three".into());
@@ -160,9 +149,14 @@ mod test {
     #[test]
     fn ancestors() {
         let mut env = Environment::new();
+        env.declare(None, "foo".into(), "global".into());
         let one = env.new_scope(None);
+        env.declare(Some(one), "foo".into(), "one".into());
         let two = env.new_scope(Some(one));
+        env.declare(Some(two), "foo".into(), "two".into());
         let three = env.new_scope(Some(two));
+        env.declare(Some(three), "foo".into(), "three".into());
         assert!(env.ancestor_scope(three, 2).unwrap() == one);
+        assert!(env.get(env.ancestor_scope(three, 2), "foo") == Some("one".into()));
     }
 }

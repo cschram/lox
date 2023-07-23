@@ -77,7 +77,7 @@ impl Lox {
             }
             Stmt::Var { name, initializer } => {
                 let value = match initializer {
-                    Some(expr) => self.evaluate_expr(scope, expr)?.clone(),
+                    Some(expr) => self.evaluate_expr(scope, expr)?,
                     None => LoxValue::Nil,
                 };
                 self.env.declare(Some(scope), name.lexeme_str(), value);
@@ -105,8 +105,9 @@ impl Lox {
                 }
             }
             Stmt::WhileLoop { condition, body } => {
-                while self.evaluate_expr(scope, condition)?.is_truthy() {
-                    self.evaluate_stmt(scope, body)?;
+                let while_scope = self.env.new_scope(Some(scope));
+                while self.evaluate_expr(while_scope, condition)?.is_truthy() {
+                    self.evaluate_stmt(while_scope, body)?;
                 }
                 Ok(())
             }
@@ -116,7 +117,7 @@ impl Lox {
                     name: Some(identifier.clone()),
                     params: params.clone(),
                     body: FunctionBody::Block(body.clone()),
-                    closure: Some(scope),
+                    closure: Some(self.env.new_scope(Some(scope))),
                 }
                 .into();
                 self.env.declare(Some(scope), identifier, fun);
@@ -151,10 +152,9 @@ impl Lox {
             ExprKind::Grouping(inner) => self.evaluate_expr(scope, inner),
             ExprKind::Identifier(name) => {
                 let scope = match self.locals.get(&expr.id()) {
-                    Some(distance) => self
-                        .env
-                        .ancestor_scope(scope, *distance)
-                        .expect("Invalid ancestor scope"),
+                    Some(depth) => self.env.ancestor_scope(scope, *depth).unwrap_or_else(|| {
+                        panic!("Invalid ancestor scope for \"{}\"", name.lexeme_str())
+                    }),
                     None => GLOBAL_SCOPE,
                 };
                 self.env
@@ -167,10 +167,13 @@ impl Lox {
             ExprKind::Assignment { name, value } => {
                 let val = self.evaluate_expr(scope, value)?;
                 let scope = match self.locals.get(&expr.id()) {
-                    Some(distance) => self
-                        .env
-                        .ancestor_scope(scope, *distance)
-                        .expect("Invalid ancestor scope"),
+                    Some(distance) => {
+                        self.env
+                            .ancestor_scope(scope, *distance)
+                            .unwrap_or_else(|| {
+                                panic!("Invalid ancestor scope for \"{}\"", name.lexeme_str())
+                            })
+                    }
                     None => GLOBAL_SCOPE,
                 };
                 self.env.assign(Some(scope), name.lexeme_str(), val.clone());
@@ -345,8 +348,8 @@ impl Lox {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::super::test_scripts::*;
+    use super::*;
     use mock_logger::MockLogger;
 
     #[test]

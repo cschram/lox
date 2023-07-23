@@ -167,29 +167,62 @@ impl Resolver {
     }
 
     fn is_initialized(&self, name: &str) -> bool {
-        self.peek().get(name).map(|v| *v).unwrap_or(true)
+        self.peek().get(name).copied().unwrap_or(true)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use super::super::parser::*;
     use super::super::super::test_scripts::*;
+    use super::super::parser::*;
+    use super::*;
+
+    fn local_keys(locals: &Locals) -> Vec<&usize> {
+        let mut keys = locals.keys().collect::<Vec<&usize>>();
+        keys.sort_unstable();
+        keys
+    }
 
     #[test]
     fn block_scope() -> LoxResult {
-        let ParseResult { statements, errors: _ } = parse(BLOCK_SCOPE_TEST);
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(BLOCK_SCOPE_TEST);
         let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
         assert_eq!(locals.len(), 1);
+        assert_eq!(locals.get(keys[0]), Some(&0));
         Ok(())
     }
 
     #[test]
     fn for_loop() -> LoxResult {
-        let ParseResult { statements, errors: _ } = parse(FOR_LOOP_TEST);
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(FOR_LOOP_TEST);
         let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
         assert_eq!(locals.len(), 4);
+        assert_eq!(locals.get(keys[0]), Some(&1));
+        assert_eq!(locals.get(keys[1]), Some(&2));
+        assert_eq!(locals.get(keys[2]), Some(&2));
+        assert_eq!(locals.get(keys[3]), Some(&3));
+        Ok(())
+    }
+
+    #[test]
+    fn function() -> LoxResult {
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(FUNCTION_TEST);
+        let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
+        assert_eq!(locals.len(), 2);
+        assert_eq!(locals.get(keys[0]), Some(&1));
+        assert_eq!(locals.get(keys[1]), Some(&0));
         Ok(())
     }
 
@@ -200,7 +233,12 @@ mod test {
             errors: _,
         } = parse(FUNCTION_CLOSURE_TEST);
         let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
         assert_eq!(locals.len(), 4);
+        assert_eq!(locals.get(keys[0]), Some(&1));
+        assert_eq!(locals.get(keys[1]), Some(&1));
+        assert_eq!(locals.get(keys[2]), Some(&1));
+        assert_eq!(locals.get(keys[3]), Some(&0));
         Ok(())
     }
 
@@ -211,7 +249,10 @@ mod test {
             errors: _,
         } = parse(SHADOWING_TEST);
         let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
         assert_eq!(locals.len(), 2);
+        assert_eq!(locals.get(keys[0]), Some(&0));
+        assert_eq!(locals.get(keys[1]), Some(&0));
         Ok(())
     }
 }
