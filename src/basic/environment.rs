@@ -64,7 +64,6 @@ impl Environment {
     }
 
     pub fn ancestor_scope(&self, handle: ScopeHandle, distance: usize) -> Option<ScopeHandle> {
-        println!("{}", distance);
         if distance > 0 {
             let parent = self.parent_scope(handle)?;
             self.ancestor_scope(parent, distance - 1)

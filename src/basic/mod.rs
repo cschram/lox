@@ -32,32 +32,21 @@ impl Lox {
     }
 
     pub fn exec(&mut self, source: &str) -> LoxResult {
-        let ScanResult {
-            tokens,
-            errors: scan_errors,
-        } = Scanner::scan(source);
-        if !scan_errors.is_empty() {
-            for err in scan_errors.iter() {
-                error!("Error: {}", err.to_string());
-            }
-            return Err(LoxError::Runtime("Syntax errors encountered".into()));
-        }
         let ParseResult {
             statements,
             errors: parse_errors,
-        } = Parser::parse(tokens);
+        } = parse(source);
         if !parse_errors.is_empty() {
             for err in parse_errors.iter() {
-                error!("Error: {}", err.to_string());
+                error!("Parse Error: {}", err.to_string());
             }
             return Err(LoxError::Runtime("Syntax errors encountered".into()));
         }
         for (key, value) in Resolver::bind(&statements)?.drain() {
             self.locals.insert(key, value);
         }
-        let scope = self.env.new_scope(None);
         for stmt in statements.iter() {
-            self.evaluate_stmt(scope, stmt)?;
+            self.evaluate_stmt(GLOBAL_SCOPE, stmt)?;
         }
         Ok(())
     }
@@ -357,20 +346,14 @@ impl Lox {
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::super::test_scripts::*;
     use mock_logger::MockLogger;
 
     #[test]
     fn print() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            var pi = 3.14;
-            print pi;
-            var foo;
-            print foo;
-        "#,
-        )?;
+        lox.exec(PRINT_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "3.14");
@@ -383,20 +366,11 @@ mod test {
     fn block_scope() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            var foo = "foo";
-            {
-                var foo = "bar";
-                print foo;
-            }
-            print foo;
-        "#,
-        )?;
+        lox.exec(BLOCK_SCOPE_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
-            assert_eq!(entries[0].body, "bar");
-            assert_eq!(entries[1].body, "foo");
+            assert_eq!(entries[0].body, "foo");
+            assert_eq!(entries[1].body, "bar");
         });
         Ok(())
     }
@@ -405,20 +379,7 @@ mod test {
     fn control_flow() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            if (true and (nil or "truthy")) {
-                print "true";
-            } else {
-                print "false";
-            }
-            if (false) {
-                print "false";
-            } else {
-                print "true";
-            }
-        "#,
-        )?;
+        lox.exec(CONTROL_FLOW_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "true");
@@ -431,15 +392,7 @@ mod test {
     fn while_loop() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            var index = 4;
-            while (index > 0) {
-                print index;
-                index = index - 1;
-            }
-        "#,
-        )?;
+        lox.exec(WHILE_LOOP_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 4);
             assert_eq!(entries[0].body, "4");
@@ -454,15 +407,7 @@ mod test {
     fn for_loop() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            var index = 42;
-            for (var index = 0; index < 4; index = index + 1) {
-                print index;
-            }
-            print index;
-        "#,
-        )?;
+        lox.exec(FOR_LOOP_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 5);
             assert_eq!(entries[0].body, "0");
@@ -475,14 +420,10 @@ mod test {
     }
 
     #[test]
-    fn native_functions() -> LoxResult {
+    fn builtins() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            print time();
-        "#,
-        )?;
+        lox.exec(BUILTINS_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
             assert_ne!(entries[0].body, "nil");
@@ -491,23 +432,10 @@ mod test {
     }
 
     #[test]
-    fn function_definitions() -> LoxResult {
+    fn function() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            fun greet(name) {
-                fun greeting() {
-                    return "Hello, " + name + "!";
-                }
-                print greeting();
-            }
-            fun get_name() {
-                return "world";
-            }
-            greet(get_name());
-        "#,
-        )?;
+        lox.exec(FUNCTION_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].body, "Hello, world!");
@@ -519,23 +447,7 @@ mod test {
     fn function_closure() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            fun make_counter() {
-                var i = 0;
-                fun count() {
-                  i = i + 1;
-                  print i;
-                }
-              
-                return count;
-              }
-              
-              var counter = make_counter();
-              counter();
-              counter();
-            "#,
-        )?;
+        lox.exec(FUNCTION_CLOSURE_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "1");
@@ -548,20 +460,7 @@ mod test {
     fn shadowing() -> LoxResult {
         mock_logger::init();
         let mut lox = Lox::new();
-        lox.exec(
-            r#"
-            var a = "global";
-            {
-                fun print_a() {
-                    print a;
-                }
-
-                print_a();
-                var a = "block";
-                print_a();
-            }
-            "#,
-        )?;
+        lox.exec(SHADOWING_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "global");

@@ -11,7 +11,7 @@ pub struct Resolver {
 impl Resolver {
     pub fn bind(statements: &[Stmt]) -> LoxResult<Locals> {
         let mut resolver = Resolver {
-            stack: vec![HashMap::new()],
+            stack: vec![],
             locals: HashMap::new(),
         };
         for stmt in statements.iter() {
@@ -79,7 +79,7 @@ impl Resolver {
     fn bind_expr(&mut self, expr: &Expr) -> LoxResult {
         match &expr.kind {
             ExprKind::Identifier(name) => {
-                if !self.stack.is_empty() && !self.is_defined(&name.lexeme_str()) {
+                if !self.stack.is_empty() && !self.is_initialized(&name.lexeme_str()) {
                     return Err(LoxError::Resolution(
                         "Attempted to resolve variable in its own initializer".into(),
                     ));
@@ -124,9 +124,8 @@ impl Resolver {
     }
 
     fn resolve_local(&mut self, expr: &Expr, name: String) {
-        for (i, frame) in self.stack.iter().enumerate() {
+        for (i, frame) in self.stack.iter().rev().enumerate() {
             if frame.contains_key(&name) {
-                println!("{}", name);
                 self.resolve(expr, i);
                 break;
             }
@@ -167,30 +166,52 @@ impl Resolver {
         &mut self.stack[last]
     }
 
-    fn is_defined(&self, name: &str) -> bool {
-        self.peek().get(name).map(|v| *v).unwrap_or(false)
+    fn is_initialized(&self, name: &str) -> bool {
+        self.peek().get(name).map(|v| *v).unwrap_or(true)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::super::{parser::*, scanner::*};
     use super::*;
+    use super::super::parser::*;
+    use super::super::super::test_scripts::*;
 
     #[test]
-    fn resolution() -> LoxResult {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            var pi = 3.14;
-            print pi;
-        "#,
-        );
+    fn block_scope() -> LoxResult {
+        let ParseResult { statements, errors: _ } = parse(BLOCK_SCOPE_TEST);
+        let locals = Resolver::bind(&statements)?;
+        assert_eq!(locals.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn for_loop() -> LoxResult {
+        let ParseResult { statements, errors: _ } = parse(FOR_LOOP_TEST);
+        let locals = Resolver::bind(&statements)?;
+        assert_eq!(locals.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn function_closure() -> LoxResult {
         let ParseResult {
             statements,
             errors: _,
-        } = Parser::parse(tokens);
+        } = parse(FUNCTION_CLOSURE_TEST);
         let locals = Resolver::bind(&statements)?;
-        assert_eq!(locals.len(), 1);
+        assert_eq!(locals.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn shadowing() -> LoxResult {
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(SHADOWING_TEST);
+        let locals = Resolver::bind(&statements)?;
+        assert_eq!(locals.len(), 2);
         Ok(())
     }
 }

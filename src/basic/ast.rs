@@ -1,5 +1,5 @@
 use super::scanner::Token;
-use std::{cell::RefCell, fmt::Display, hash::Hash};
+use std::{cell::RefCell, fmt::Display};
 
 thread_local! {
     static EXPR_COUNT: RefCell<usize> = RefCell::new(0);

@@ -1,3 +1,4 @@
+use log::error;
 use super::{ast::*, error::*, scanner::*};
 
 const MAX_ARGUMENTS: usize = 255;
@@ -13,19 +14,22 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn parse(tokens: Vec<Token>) -> ParseResult {
-        let mut parser = Self { tokens, current: 0 };
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, current: 0 }
+    }
+
+    pub fn parse(&mut self) -> ParseResult {
         let mut statements: Vec<Stmt> = vec![];
         let mut errors: Vec<LoxError> = vec![];
-        while !parser.is_at_end() {
-            if !parser.match_tokens(&[TokenKind::Eof]) {
-                match parser.declaration() {
+        while !self.is_at_end() {
+            if !self.match_tokens(&[TokenKind::Eof]) {
+                match self.declaration() {
                     Ok(stmt) => {
                         statements.push(stmt);
                     }
                     Err(err) => {
                         errors.push(err);
-                        parser.synchronize();
+                        self.synchronize();
                     }
                 }
             }
@@ -446,42 +450,35 @@ impl Parser {
     }
 }
 
+pub fn parse(source: &str) -> ParseResult {
+    let ScanResult { tokens, errors } = scan(source);
+    for err in errors {
+        error!("Scan Error: {}", err);
+    }
+    let mut parser = Parser::new(tokens);
+    parser.parse()
+}
+
 #[cfg(test)]
 mod test {
-    use super::super::{ScanResult, Scanner};
     use super::*;
+    use super::super::super::test_scripts::*;
 
     #[test]
     fn print_var() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            var pi = 3.14;
-            print pi;
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(PRINT_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 2);
+        assert_eq!(statements.len(), 4);
     }
 
     #[test]
     fn block_scope() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            var foo = "foo";
-            print foo;
-            {
-                var foo = "bar";
-                print foo;
-            }
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(BLOCK_SCOPE_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
@@ -489,37 +486,19 @@ mod test {
 
     #[test]
     fn control_flow() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            if (true and ("true" or 42)) {
-                print "true";
-            } else {
-                print "false";
-            }
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(CONTROL_FLOW_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 1);
+        assert_eq!(statements.len(), 2);
     }
 
     #[test]
     fn while_loop() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            var i = 4;
-            while (i > 0) {
-                print i;
-                i = i - 1;
-            }
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(WHILE_LOOP_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 2);
@@ -527,40 +506,19 @@ mod test {
 
     #[test]
     fn for_loop() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            for (var i = 0; i < 4; i = i + 1) {
-                print i;
-            }
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(FOR_LOOP_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 1);
+        assert_eq!(statements.len(), 3);
     }
 
     #[test]
     fn functions() {
-        let ScanResult { tokens, errors: _ } = Scanner::scan(
-            r#"
-            fun greet(name) {
-                fun greeting() {
-                    return "Hello, " + name + "!";
-                }
-                print greeting();
-            }
-            fun get_name() {
-                return "world";
-            }
-            greet(get_name());
-        "#,
-        );
-        let ParseResult { statements, errors } = Parser::parse(tokens);
+        let ParseResult { statements, errors } = parse(FUNCTION_TEST);
         for err in errors.iter() {
-            println!("{}", err);
+            println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);

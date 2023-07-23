@@ -1,4 +1,5 @@
 mod basic;
+mod test_scripts;
 
 use crate::basic::{Lox, LoxError};
 

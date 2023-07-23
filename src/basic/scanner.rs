@@ -124,29 +124,32 @@ pub struct Scanner {
 }
 
 impl Scanner {
-    // Do a full scan of the source.
-    pub fn scan(source: &str) -> ScanResult {
-        let mut scanner = Self {
+    pub fn new(source: &str) -> Self {
+        Self {
             source: source.chars().collect(),
             tokens: vec![],
             errors: vec![],
             line: 0,
             start: 0,
             current: 0,
-        };
-        while !scanner.id_at_end() {
-            scanner.start = scanner.current;
-            scanner.scan_token();
         }
-        scanner.tokens.push(Token::new(
+    }
+
+    // Do a full scan of the source.
+    pub fn scan(&mut self) -> ScanResult {
+        while !self.id_at_end() {
+            self.start = self.current;
+            self.scan_token();
+        }
+        self.tokens.push(Token::new(
             TokenKind::Eof,
             None,
             None,
-            scanner.line as u32 + 1,
+            self.line as u32 + 1,
         ));
         ScanResult {
-            tokens: take(&mut scanner.tokens),
-            errors: take(&mut scanner.errors),
+            tokens: take(&mut self.tokens),
+            errors: take(&mut self.errors),
         }
     }
 
@@ -367,17 +370,19 @@ impl Scanner {
     }
 }
 
+pub fn scan(source: &str) -> ScanResult {
+    let mut scanner = Scanner::new(source);
+    scanner.scan()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use super::super::super::test_scripts::*;
 
     #[test]
     fn expressions() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            "foo" + (1 + (3 / 2) - (8 * 4))
-        "#,
-        );
+        let ScanResult { tokens, errors } = scan(EXPRESSION_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }
@@ -387,13 +392,7 @@ mod test {
 
     #[test]
     fn variables() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            var i = 5;
-            var foo = "bar";
-            var is_okay = true;
-        "#,
-        );
+        let ScanResult { tokens, errors } = scan(VARIABLE_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }
@@ -402,79 +401,49 @@ mod test {
     }
 
     #[test]
-    fn print_statement() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            print "Hello, world!";
-        "#,
-        );
+    fn print() {
+        let ScanResult { tokens, errors } = scan(PRINT_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens.len(), 15);
+    }
+
+    #[test]
+    fn block_scope() {
+        let ScanResult { tokens, errors } = scan(BLOCK_SCOPE_TEST);
+        for err in errors.iter() {
+            println!("{}", err);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(tokens.len(), 19);
     }
 
     #[test]
     fn control_flow() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            if true {
-                print "true";
-            } else {
-                print "false";
-            }
-        "#,
+        let ScanResult { tokens, errors } = scan(CONTROL_FLOW_TEST,
         );
         for err in errors.iter() {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(tokens.len(), 14);
+        assert_eq!(tokens.len(), 37);
     }
 
     #[test]
-    fn fun_statement() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            var greeting = "Hello";
-            fun greet(name) {
-                print greeting + ", " + name;
-            }
-            greet("world");
-        "#,
-        );
+    fn function() {
+        let ScanResult { tokens, errors } = scan(FUNCTION_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(tokens.len(), 25);
+        assert_eq!(tokens.len(), 42);
     }
 
     #[test]
-    fn class_statement() {
-        let ScanResult { tokens, errors } = Scanner::scan(
-            r#"
-            class Greeter {
-                init(greeting) {
-                    this.greeting = greeting;
-                }
-
-                greet(name) {
-                    print this.greeting + ", " + name;
-                }
-            }
-
-            class HelloGreeter < Greeter {
-                init() {
-                    super.init("Hello");
-                }
-            }
-
-            var greeter = HelloGreeter();
-            greeter.greet("world");
-        "#,
-        );
+    fn class() {
+        let ScanResult { tokens, errors } = scan(CLASS_TEST);
         for err in errors.iter() {
             println!("{}", err);
         }
