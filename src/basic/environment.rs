@@ -1,6 +1,8 @@
 use super::{builtins::*, value::*};
 use std::collections::HashMap;
 
+pub type LoxVars = HashMap<String, LoxValue>;
+
 #[derive(PartialEq, Clone, Copy)]
 pub struct ScopeHandle(usize);
 
@@ -13,18 +15,20 @@ impl std::fmt::Display for ScopeHandle {
 pub const GLOBAL_SCOPE: ScopeHandle = ScopeHandle(0);
 
 pub struct Scope {
-    vars: HashMap<String, LoxValue>,
+    vars: LoxVars,
     parent: Option<ScopeHandle>,
     children: Vec<ScopeHandle>,
 }
 
 pub struct Environment {
+    builtins: LoxVars,
     scopes: Vec<Option<Scope>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
+            builtins: get_builtins(),
             scopes: vec![
                 // Root scope
                 Some(Scope {
@@ -110,7 +114,7 @@ impl Environment {
 
     // TODO: Don't clone everywhere
     fn get_builtin(&self, key: &str) -> Option<LoxValue> {
-        BUILTINS.get(key).cloned()
+        self.builtins.get(key).cloned()
     }
 
     fn get_empty(&mut self) -> ScopeHandle {

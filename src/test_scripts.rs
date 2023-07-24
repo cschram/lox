@@ -100,11 +100,13 @@ pub const SHADOWING_TEST: &str = r#"
 "#;
 
 pub const CLASS_TEST: &str = r#"
-    class Foo {
+    class Greeter {
+        greet(name) {
+            print "Hello, " + name + "!";
+        }
     }
-    var instance = Foo();
-    instance.bar = "baz";
-    print instance.bar;
+    var greeter = Greeter();
+    greeter.greet("world");
 "#;
 // pub const CLASS_TEST: &str = r#"
 //     class Greeter {

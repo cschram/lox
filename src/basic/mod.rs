@@ -11,6 +11,7 @@ pub use self::error::*;
 use self::{ast::*, environment::*, parser::*, resolver::*, scanner::*, value::*};
 use log::{error, info};
 use std::{
+    cell::Ref,
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
@@ -104,29 +105,24 @@ impl Lox {
                     self.evaluate_stmt(while_scope, body)?;
                 }
             }
-            Stmt::Fun { name, params, body } => {
-                let identifier = name.lexeme_str();
-                let fun: LoxValue = LoxFunction {
-                    name: Some(identifier.clone()),
-                    params: params.clone(),
-                    body: FunctionBody::Block(body.clone()),
-                    closure: Some(self.env.new_scope(Some(scope))),
-                    is_method: false,
-                }
-                .into();
-                self.env.declare(Some(scope), identifier, fun);
+            Stmt::Fun { name, .. } => {
+                let fun = LoxFunction::from_stmt(&stmt, self.env.new_scope(Some(scope)))?;
+                self.env.declare(Some(scope), name.lexeme_str(), fun.into());
             }
             Stmt::Return(expr) => {
                 let last = self.stack.len() - 1;
                 self.stack[last] = self.evaluate_expr(scope, expr)?;
             }
-            Stmt::Class { name, methods } => {
-                let mut class = LoxClass {
+            Stmt::Class { name, methods: method_defs } => {
+                let mut methods = HashMap::<String, LoxFunction>::new();
+                for def in method_defs.iter() {
+                    let fun = LoxFunction::from_stmt(def, scope)?;
+                    methods.insert(fun.name.clone().unwrap(), fun);
+                }
+                self.env.declare(Some(scope), name.lexeme_str(), LoxClass {
                     name: name.lexeme_str(),
-                    constructor: None,
-                    methods: HashMap::new(),
-                };
-                self.env.declare(Some(scope), name.lexeme_str(), class.into());
+                    methods,
+                }.into());
             }
         }
         Ok(())
@@ -207,17 +203,17 @@ impl Lox {
             ExprKind::Call { callee, arguments } => {
                 match self.evaluate_expr(scope, callee)? {
                     LoxValue::Function(fun) => {
-                        self.call_func(scope, &fun, arguments, None)
+                        self.call_func(scope, &fun.borrow(), arguments, None)
                     },
                     LoxValue::Class(class) => {
-                        let mut obj: LoxValue = LoxObject {
-                            class: class.clone(),
-                            vars: HashMap::new(),
-                        }.into();
-                        if let Some(constructor) = &class.constructor {
-                            self.call_func(scope, constructor, arguments, Some(&mut obj))?;
+                        let mut vars = LoxVars::new();
+                        for (name, fun) in class.borrow().methods.iter() {
+                            vars.insert(name.clone(), fun.clone().into());
                         }
-                        Ok(obj)
+                        Ok(LoxObject {
+                            class: class.clone(),
+                            vars,
+                        }.into())
                     },
                     _ => {
                         Err(LoxError::Runtime("Cannot call a non-function".into()))
@@ -225,10 +221,20 @@ impl Lox {
                 }
             },
             ExprKind::Get { left, right } => {
-                Ok(LoxValue::Nil)
+                let identifier = right.lexeme_str();
+                let value = self.evaluate_expr(scope, left)?
+                        .get_object()?
+                        .borrow()
+                        .vars.get(&identifier)
+                        .cloned()
+                        .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", identifier)))?;
+                Ok(value)
             }
             ExprKind::Set { object, identifier, value } => {
-                Ok(LoxValue::Nil)
+                let obj = self.evaluate_expr(scope, object)?.get_object()?;
+                let val = self.evaluate_expr(scope, value)?;
+                obj.borrow_mut().vars.insert(identifier.lexeme_str(), val.clone());
+                Ok(val)
             }
         }
     }
@@ -496,15 +502,15 @@ mod test {
         Ok(())
     }
 
-    // #[test]
-    // fn class() -> LoxResult {
-    //     mock_logger::init();
-    //     let mut lox = Lox::new();
-    //     lox.exec(CLASS_TEST)?;
-    //     MockLogger::entries(|entries| {
-    //         assert_eq!(entries.len(), 1);
-    //         assert_eq!(entries[0].body, "Hello, world");
-    //     });
-    //     Ok(())
-    // }
+    #[test]
+    fn class() -> LoxResult {
+        mock_logger::init();
+        let mut lox = Lox::new();
+        lox.exec(CLASS_TEST)?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].body, "Hello, world!");
+        });
+        Ok(())
+    }
 }

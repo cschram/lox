@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+};
 
 use super::{ast::*, environment::*, error::*, scanner::*};
 
@@ -20,6 +24,21 @@ pub struct LoxFunction {
 }
 
 impl LoxFunction {
+    pub fn from_stmt(stmt: &Stmt, scope: ScopeHandle) -> LoxResult<Self> {
+        if let Stmt::Fun { name, params, body } = stmt {
+            let identifier = name.lexeme_str();
+            Ok(LoxFunction {
+                name: Some(identifier.clone()),
+                params: params.clone(),
+                body: FunctionBody::Block(body.clone()),
+                closure: Some(scope),
+                is_method: false,
+            })
+        } else {
+            Err(LoxError::Runtime("Expected a function statement".into()))
+        }
+    }
+
     pub fn native(name: &str, params: Vec<&str>, body: NativeFunction) -> Self {
         LoxFunction {
             name: Some(name.into()),
@@ -37,15 +56,13 @@ impl LoxFunction {
 #[derive(PartialEq, Clone)]
 pub struct LoxClass {
     pub name: String,
-    pub constructor: Option<LoxFunction>,
     pub methods: HashMap<String, LoxFunction>,
 }
 
 #[derive(PartialEq, Clone)]
 pub struct LoxObject {
-    // TODO: This should be a reference but that's tricky
-    pub class: LoxClass,
-    pub vars: HashMap<String, LoxValue>,
+    pub class: Rc<RefCell<LoxClass>>,
+    pub vars: LoxVars,
 }
 
 #[derive(PartialEq, Clone)]
@@ -54,9 +71,9 @@ pub enum LoxValue {
     Boolean(bool),
     Number(f64),
     String(String),
-    Function(LoxFunction),
-    Class(LoxClass),
-    Object(LoxObject),
+    Function(Rc<RefCell<LoxFunction>>),
+    Class(Rc<RefCell<LoxClass>>),
+    Object(Rc<RefCell<LoxObject>>),
 }
 
 impl LoxValue {
@@ -133,9 +150,9 @@ impl LoxValue {
         }
     }
 
-    pub fn get_fun(&self) -> LoxResult<&LoxFunction> {
+    pub fn get_fun(&self) -> LoxResult<Rc<RefCell<LoxFunction>>> {
         if let Self::Function(fun) = self {
-            Ok(fun)
+            Ok(fun.clone())
         } else {
             Err(LoxError::Runtime(format!(
                 "Expected Function, got \"{}\"",
@@ -144,9 +161,9 @@ impl LoxValue {
         }
     }
 
-    pub fn get_class(&self) -> LoxResult<&LoxClass> {
+    pub fn get_class(&self) -> LoxResult<Rc<RefCell<LoxClass>>> {
         if let Self::Class(class) = self {
-            Ok(class)
+            Ok(class.clone())
         } else {
             Err(LoxError::Runtime(format!(
                 "Expected Class, got \"{}\"",
@@ -155,9 +172,9 @@ impl LoxValue {
         }
     }
 
-    pub fn get_object(&self) -> LoxResult<&LoxObject> {
+    pub fn get_object(&self) -> LoxResult<Rc<RefCell<LoxObject>>> {
         if let Self::Object(obj) = self {
-            Ok(obj)
+            Ok(obj.clone())
         } else {
             Err(LoxError::Runtime(format!(
                 "Expected Object, got \"{}\"",
@@ -200,20 +217,20 @@ impl From<&str> for LoxValue {
 }
 
 impl From<LoxFunction> for LoxValue {
-    fn from(func: LoxFunction) -> Self {
-        Self::Function(func)
+    fn from(value: LoxFunction) -> Self {
+        Self::Function(Rc::new(RefCell::new(value)))
     }
 }
 
 impl From<LoxClass> for LoxValue {
     fn from(value: LoxClass) -> Self {
-        Self::Class(value)
+        Self::Class(Rc::new(RefCell::new(value)))
     }
 }
 
 impl From<LoxObject> for LoxValue {
     fn from(value: LoxObject) -> Self {
-        Self::Object(value)
+        Self::Object(Rc::new(RefCell::new(value)))
     }
 }
 
@@ -239,13 +256,13 @@ impl ToString for LoxValue {
             Self::Number(value) => value.to_string(),
             Self::String(value) => value.clone(),
             Self::Function(func) => {
-                format!("<function {}>", func.name.as_ref().unwrap_or(&"".into()))
+                format!("<function {}>", func.borrow().name.as_ref().unwrap_or(&"".into()))
             },
             Self::Class(class) => {
-                format!("<class {}>", class.name)
+                format!("<class {}>", class.borrow().name)
             },
             Self::Object(obj) => {
-                format!("<instance {}>", obj.class.name)
+                format!("<instance {}>", obj.borrow().class.borrow().name)
             }
         }
     }
