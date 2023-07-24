@@ -41,7 +41,9 @@ impl Parser {
      * Statements
      */
     fn declaration(&mut self) -> LoxResult<Stmt> {
-        if self.match_tokens(&[TokenKind::Fun]) {
+        if self.match_tokens(&[TokenKind::Class]) {
+            self.class()
+        } else if self.match_tokens(&[TokenKind::Fun]) {
             self.function()
         } else if self.match_tokens(&[TokenKind::Var]) {
             self.var_declaration()
@@ -50,10 +52,20 @@ impl Parser {
         }
     }
 
+    fn class(&mut self) -> LoxResult<Stmt> {
+        let name = self.consume(TokenKind::Identifier, "Expected identifier")?.clone();
+        self.consume(TokenKind::LeftBrace, "Expected opening brace")?;
+        let mut methods: Vec<Stmt> = vec![];
+        while !self.check(TokenKind::RightBrace) && !self.is_at_end() {
+            methods.push(self.function()?);
+        }
+        self.consume(TokenKind::RightBrace, "Expected closing brace")?;
+        Ok(Stmt::Class { name, methods })
+    }
+
     fn function(&mut self) -> LoxResult<Stmt> {
         let name = self
-            .consume(TokenKind::Identifier, "Expected identifier")?
-            .clone();
+            .consume(TokenKind::Identifier, "Expected identifier")?.clone();
         self.consume(TokenKind::LeftParen, "Expected opening parenthesis")?;
         let params: Vec<Token> = self.fun_parameters()?;
         self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
@@ -208,17 +220,24 @@ impl Parser {
      */
 
     fn expression(&mut self) -> LoxResult<Expr> {
-        self.assignemnt()
+        self.assignment()
     }
 
-    fn assignemnt(&mut self) -> LoxResult<Expr> {
+    fn assignment(&mut self) -> LoxResult<Expr> {
         let mut left = self.logic_or()?;
         if self.match_tokens(&[TokenKind::Equal]) {
             if let ExprKind::Identifier(name) = left.kind {
-                let right = self.assignemnt()?;
+                let right = self.assignment()?;
                 left = ExprKind::Assignment {
                     name,
                     value: Box::new(right),
+                }
+                .into();
+            } else if let ExprKind::Get { left: object, right: identifier } = left.kind {
+                left = ExprKind::Set {
+                    object,
+                    identifier,
+                    value: Box::new(self.assignment()?),
                 }
                 .into();
             } else {
@@ -339,27 +358,39 @@ impl Parser {
 
     fn call(&mut self) -> LoxResult<Expr> {
         let mut left = self.primary()?;
-        while self.match_tokens(&[TokenKind::LeftParen]) {
-            let mut arguments: Vec<Expr> = vec![];
-            if !self.match_tokens(&[TokenKind::RightParen]) {
-                loop {
-                    arguments.push(self.expression()?);
-                    if arguments.len() > MAX_ARGUMENTS {
-                        return Err(LoxError::Runtime(
-                            "Exceeded maximum number of arguments".into(),
-                        ));
+        loop {
+            if self.match_tokens(&[TokenKind::LeftParen]) {
+                let mut arguments: Vec<Expr> = vec![];
+                if !self.match_tokens(&[TokenKind::RightParen]) {
+                    loop {
+                        arguments.push(self.expression()?);
+                        if arguments.len() > MAX_ARGUMENTS {
+                            return Err(LoxError::Runtime(
+                                "Exceeded maximum number of arguments".into(),
+                            ));
+                        }
+                        if !self.match_tokens(&[TokenKind::Comma]) {
+                            break;
+                        }
                     }
-                    if !self.match_tokens(&[TokenKind::Comma]) {
-                        break;
-                    }
+                    self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
                 }
-                self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
+                left = ExprKind::Call {
+                    callee: Box::new(left),
+                    arguments,
+                }
+                .into();
+                break;
+            } else if self.match_tokens(&[TokenKind::Dot]) {
+                let identifier = self.consume(TokenKind::Identifier, "Expected identifier after \".\"")?;
+                left = ExprKind::Get {
+                    left: Box::new(left),
+                    right: identifier.clone(),
+                }
+                .into();
+            } else {
+                break;
             }
-            left = ExprKind::Call {
-                callee: Box::new(left),
-                arguments,
-            }
-            .into();
         }
         Ok(left)
     }
@@ -525,12 +556,25 @@ mod test {
     }
 
     #[test]
-    fn functions() {
+    fn function() {
         let ParseResult { statements, errors } = parse(FUNCTION_TEST);
         for err in errors.iter() {
             println!("Parse Error: {}", err);
         }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
+    }
+    
+    #[test]
+    fn class() {
+        let ParseResult { statements, errors } = parse(CLASS_TEST);
+        for err in errors.iter() {
+            println!("Parse Error: {}", err);
+        }
+        for stmt in statements.iter() {
+            println!("{}", stmt);
+        }
+        assert_eq!(errors.len(), 0);
+        assert_eq!(statements.len(), 4);
     }
 }

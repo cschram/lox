@@ -68,12 +68,10 @@ impl Lox {
         match stmt {
             Stmt::Expr(expr) => {
                 self.evaluate_expr(scope, expr)?;
-                Ok(())
             }
             Stmt::Print(expr) => {
                 let value = self.evaluate_expr(scope, expr)?;
                 info!("{}", value.to_string());
-                Ok(())
             }
             Stmt::Var { name, initializer } => {
                 let value = match initializer {
@@ -81,14 +79,12 @@ impl Lox {
                     None => LoxValue::Nil,
                 };
                 self.env.declare(Some(scope), name.lexeme_str(), value);
-                Ok(())
             }
             Stmt::Block(statements) => {
                 let block_scope = self.env.new_scope(Some(scope));
                 for stmt in statements.iter() {
                     self.evaluate_stmt(block_scope, stmt)?;
                 }
-                Ok(())
             }
             Stmt::IfElse {
                 condition,
@@ -97,11 +93,9 @@ impl Lox {
             } => {
                 let cond = self.evaluate_expr(scope, condition)?;
                 if cond.is_truthy() {
-                    self.evaluate_stmt(scope, body)
+                    self.evaluate_stmt(scope, body)?;
                 } else if let Some(else_stmt) = else_branch {
-                    self.evaluate_stmt(scope, else_stmt)
-                } else {
-                    Ok(())
+                    self.evaluate_stmt(scope, else_stmt)?;
                 }
             }
             Stmt::WhileLoop { condition, body } => {
@@ -109,7 +103,6 @@ impl Lox {
                 while self.evaluate_expr(while_scope, condition)?.is_truthy() {
                     self.evaluate_stmt(while_scope, body)?;
                 }
-                Ok(())
             }
             Stmt::Fun { name, params, body } => {
                 let identifier = name.lexeme_str();
@@ -118,17 +111,25 @@ impl Lox {
                     params: params.clone(),
                     body: FunctionBody::Block(body.clone()),
                     closure: Some(self.env.new_scope(Some(scope))),
+                    is_method: false,
                 }
                 .into();
                 self.env.declare(Some(scope), identifier, fun);
-                Ok(())
             }
             Stmt::Return(expr) => {
                 let last = self.stack.len() - 1;
                 self.stack[last] = self.evaluate_expr(scope, expr)?;
-                Ok(())
+            }
+            Stmt::Class { name, methods } => {
+                let mut class = LoxClass {
+                    name: name.lexeme_str(),
+                    constructor: None,
+                    methods: HashMap::new(),
+                };
+                self.env.declare(Some(scope), name.lexeme_str(), class.into());
             }
         }
+        Ok(())
     }
 
     fn evaluate_expr(&mut self, scope: ScopeHandle, expr: &Expr) -> LoxResult<LoxValue> {
@@ -204,44 +205,30 @@ impl Lox {
                 ))),
             },
             ExprKind::Call { callee, arguments } => {
-                if let LoxValue::Function(func) = self.evaluate_expr(scope, callee)? {
-                    if arguments.len() != func.params.len() {
-                        Err(LoxError::Runtime(format!(
-                            "Function \"{}\" takes {} argument(s)",
-                            func.name.unwrap_or("".into()),
-                            func.params.len(),
-                        )))
-                    } else {
-                        let mut args: Vec<LoxValue> = vec![];
-                        for arg in arguments.iter() {
-                            args.push(self.evaluate_expr(scope, arg)?);
+                match self.evaluate_expr(scope, callee)? {
+                    LoxValue::Function(fun) => {
+                        self.call_func(scope, &fun, arguments, None)
+                    },
+                    LoxValue::Class(class) => {
+                        let mut obj: LoxValue = LoxObject {
+                            class: class.clone(),
+                            vars: HashMap::new(),
+                        }.into();
+                        if let Some(constructor) = &class.constructor {
+                            self.call_func(scope, constructor, arguments, Some(&mut obj))?;
                         }
-                        let return_value = match func.body {
-                            FunctionBody::Block(statements) => {
-                                let closure = func.closure.expect("Function should have a closure");
-                                for (i, arg) in args.drain(0..).enumerate() {
-                                    self.env.declare(
-                                        Some(closure),
-                                        func.params[i].lexeme_str(),
-                                        arg,
-                                    );
-                                }
-                                self.stack.push(LoxValue::Nil);
-                                for stmt in statements.iter() {
-                                    self.evaluate_stmt(closure, stmt)?;
-                                    if matches!(stmt, Stmt::Return(_)) {
-                                        break;
-                                    }
-                                }
-                                self.stack.pop().unwrap()
-                            }
-                            FunctionBody::Native(func) => func(args)?,
-                        };
-                        Ok(return_value)
+                        Ok(obj)
+                    },
+                    _ => {
+                        Err(LoxError::Runtime("Cannot call a non-function".into()))
                     }
-                } else {
-                    Err(LoxError::Runtime("Attempted to call non-function".into()))
                 }
+            },
+            ExprKind::Get { left, right } => {
+                Ok(LoxValue::Nil)
+            }
+            ExprKind::Set { object, identifier, value } => {
+                Ok(LoxValue::Nil)
             }
         }
     }
@@ -342,6 +329,43 @@ impl Lox {
                 "Unknown binary operator \"{}\"",
                 operator
             ))),
+        }
+    }
+
+    fn call_func(&mut self, scope: ScopeHandle, func: &LoxFunction, arguments: &[Expr], _this: Option<&mut LoxValue>) -> LoxResult<LoxValue> {
+        if arguments.len() != func.params.len() {
+            Err(LoxError::Runtime(format!(
+                "Function \"{}\" takes {} argument(s)",
+                func.name.clone().unwrap_or("".into()),
+                func.params.len(),
+            )))
+        } else {
+            let mut args: Vec<LoxValue> = vec![];
+            for arg in arguments.iter() {
+                args.push(self.evaluate_expr(scope, arg)?);
+            }
+            let return_value = match &func.body {
+                FunctionBody::Block(statements) => {
+                    let closure = func.closure.expect("Function should have a closure");
+                    for (i, arg) in args.drain(0..).enumerate() {
+                        self.env.declare(
+                            Some(closure),
+                            func.params[i].lexeme_str(),
+                            arg,
+                        );
+                    }
+                    self.stack.push(LoxValue::Nil);
+                    for stmt in statements.iter() {
+                        self.evaluate_stmt(closure, stmt)?;
+                        if matches!(stmt, Stmt::Return(_)) {
+                            break;
+                        }
+                    }
+                    self.stack.pop().unwrap()
+                }
+                FunctionBody::Native(func) => func(args)?,
+            };
+            Ok(return_value)
         }
     }
 }
@@ -471,4 +495,16 @@ mod test {
         });
         Ok(())
     }
+
+    // #[test]
+    // fn class() -> LoxResult {
+    //     mock_logger::init();
+    //     let mut lox = Lox::new();
+    //     lox.exec(CLASS_TEST)?;
+    //     MockLogger::entries(|entries| {
+    //         assert_eq!(entries.len(), 1);
+    //         assert_eq!(entries[0].body, "Hello, world");
+    //     });
+    //     Ok(())
+    // }
 }

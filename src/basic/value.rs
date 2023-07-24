@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{ast::*, environment::*, error::*, scanner::*};
 
 pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
@@ -14,6 +16,7 @@ pub struct LoxFunction {
     pub params: Vec<Token>,
     pub body: FunctionBody,
     pub closure: Option<ScopeHandle>,
+    pub is_method: bool,
 }
 
 impl LoxFunction {
@@ -26,8 +29,23 @@ impl LoxFunction {
                 .collect(),
             body: FunctionBody::Native(body),
             closure: None,
+            is_method: false,
         }
     }
+}
+
+#[derive(PartialEq, Clone)]
+pub struct LoxClass {
+    pub name: String,
+    pub constructor: Option<LoxFunction>,
+    pub methods: HashMap<String, LoxFunction>,
+}
+
+#[derive(PartialEq, Clone)]
+pub struct LoxObject {
+    // TODO: This should be a reference but that's tricky
+    pub class: LoxClass,
+    pub vars: HashMap<String, LoxValue>,
 }
 
 #[derive(PartialEq, Clone)]
@@ -37,6 +55,8 @@ pub enum LoxValue {
     Number(f64),
     String(String),
     Function(LoxFunction),
+    Class(LoxClass),
+    Object(LoxObject),
 }
 
 impl LoxValue {
@@ -47,14 +67,16 @@ impl LoxValue {
             Self::Number(_) => "Number".into(),
             Self::String(_) => "String".into(),
             Self::Function(_) => "Function".into(),
+            Self::Class(_) => "Class".into(),
+            Self::Object(_) => "Object".into(),
         }
     }
 
-    pub fn _is_nil(&self) -> bool {
+    pub fn is_nil(&self) -> bool {
         matches!(self, Self::Nil)
     }
 
-    pub fn _is_boolean(&self) -> bool {
+    pub fn is_boolean(&self) -> bool {
         matches!(self, Self::Boolean(_))
     }
 
@@ -66,15 +88,19 @@ impl LoxValue {
         matches!(self, Self::String(_))
     }
 
-    pub fn _is_fun(&self) -> bool {
+    pub fn is_fun(&self) -> bool {
         matches!(self, Self::Function(_))
     }
 
-    pub fn _set_nil(&mut self) {
-        *self = Self::Nil;
+    pub fn is_class(&self) -> bool {
+        matches!(self, Self::Class(_))
+    }
+    
+    pub fn is_object(&self) -> bool {
+        matches!(self, Self::Object(_))
     }
 
-    pub fn _get_boolean(&self) -> LoxResult<bool> {
+    pub fn get_boolean(&self) -> LoxResult<bool> {
         if let Self::Boolean(value) = self {
             Ok(*value)
         } else {
@@ -83,10 +109,6 @@ impl LoxValue {
                 self.type_str()
             )))
         }
-    }
-
-    pub fn _set_boolean(&mut self, value: bool) {
-        *self = Self::Boolean(value);
     }
 
     pub fn get_number(&self) -> LoxResult<f64> {
@@ -100,13 +122,8 @@ impl LoxValue {
         }
     }
 
-    pub fn _set_number(&mut self, value: f64) {
-        *self = Self::Number(value);
-    }
-
-    pub fn _get_string(&self) -> LoxResult<String> {
+    pub fn get_string(&self) -> LoxResult<String> {
         if let Self::String(value) = self {
-            println!("get_string(): {}", value);
             Ok(value.clone())
         } else {
             Err(LoxError::Runtime(format!(
@@ -116,8 +133,37 @@ impl LoxValue {
         }
     }
 
-    pub fn _set_string(&mut self, value: String) {
-        *self = Self::String(value);
+    pub fn get_fun(&self) -> LoxResult<&LoxFunction> {
+        if let Self::Function(fun) = self {
+            Ok(fun)
+        } else {
+            Err(LoxError::Runtime(format!(
+                "Expected Function, got \"{}\"",
+                self.type_str()
+            )))
+        }
+    }
+
+    pub fn get_class(&self) -> LoxResult<&LoxClass> {
+        if let Self::Class(class) = self {
+            Ok(class)
+        } else {
+            Err(LoxError::Runtime(format!(
+                "Expected Class, got \"{}\"",
+                self.type_str()
+            )))
+        }
+    }
+
+    pub fn get_object(&self) -> LoxResult<&LoxObject> {
+        if let Self::Object(obj) = self {
+            Ok(obj)
+        } else {
+            Err(LoxError::Runtime(format!(
+                "Expected Object, got \"{}\"",
+                self.type_str()
+            )))
+        }
     }
 
     pub fn is_truthy(&self) -> bool {
@@ -153,17 +199,21 @@ impl From<&str> for LoxValue {
     }
 }
 
-impl ToString for LoxValue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Nil => "nil".into(),
-            Self::Boolean(value) => value.to_string(),
-            Self::Number(value) => value.to_string(),
-            Self::String(value) => value.clone(),
-            Self::Function(func) => {
-                format!("<function {}>", func.name.as_ref().unwrap_or(&"".into()))
-            }
-        }
+impl From<LoxFunction> for LoxValue {
+    fn from(func: LoxFunction) -> Self {
+        Self::Function(func)
+    }
+}
+
+impl From<LoxClass> for LoxValue {
+    fn from(value: LoxClass) -> Self {
+        Self::Class(value)
+    }
+}
+
+impl From<LoxObject> for LoxValue {
+    fn from(value: LoxObject) -> Self {
+        Self::Object(value)
     }
 }
 
@@ -181,21 +231,22 @@ impl From<Token> for LoxValue {
     }
 }
 
-impl From<LoxFunction> for LoxValue {
-    fn from(func: LoxFunction) -> Self {
-        Self::Function(func)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn to_string() {
-        assert_eq!(LoxValue::Nil.to_string(), "nil");
-        assert_eq!(LoxValue::Boolean(true).to_string(), "true");
-        assert_eq!(LoxValue::Number(3.14).to_string(), "3.14");
-        assert_eq!(LoxValue::String("foo".to_string()).to_string(), "foo");
+impl ToString for LoxValue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Nil => "nil".into(),
+            Self::Boolean(value) => value.to_string(),
+            Self::Number(value) => value.to_string(),
+            Self::String(value) => value.clone(),
+            Self::Function(func) => {
+                format!("<function {}>", func.name.as_ref().unwrap_or(&"".into()))
+            },
+            Self::Class(class) => {
+                format!("<class {}>", class.name)
+            },
+            Self::Object(obj) => {
+                format!("<instance {}>", obj.class.name)
+            }
+        }
     }
 }

@@ -4,15 +4,17 @@ use std::collections::HashMap;
 pub type Locals = HashMap<usize, usize>;
 
 pub struct Resolver {
-    stack: Vec<HashMap<String, bool>>,
+    locals_stack: Vec<HashMap<String, bool>>,
     locals: Locals,
+    functions_stack: Vec<()>,
 }
 
 impl Resolver {
     pub fn bind(statements: &[Stmt]) -> LoxResult<Locals> {
         let mut resolver = Resolver {
-            stack: vec![],
+            locals_stack: vec![],
             locals: HashMap::new(),
+            functions_stack: vec![],
         };
         for stmt in statements.iter() {
             resolver.bind_stmt(stmt)?;
@@ -30,6 +32,9 @@ impl Resolver {
                 self.pop();
             }
             Stmt::Var { name, initializer } => {
+                if self.has_name(&name.lexeme_str()) {
+                    return Err(LoxError::Runtime(format!("Cannot redeclare variable \"{}\" in the same scope", name.lexeme_str())))
+                }
                 self.declare(name.lexeme_str());
                 if let Some(init) = initializer {
                     self.bind_expr(init)?;
@@ -38,6 +43,7 @@ impl Resolver {
             }
             Stmt::Fun { name, params, body } => {
                 self.define(name.lexeme_str());
+                self.functions_stack.push(());
                 self.push();
                 for param in params.iter() {
                     self.define(param.lexeme_str());
@@ -46,6 +52,7 @@ impl Resolver {
                     self.bind_stmt(stmt)?;
                 }
                 self.pop();
+                self.functions_stack.pop();
             }
             Stmt::Expr(expr) => {
                 self.bind_expr(expr)?;
@@ -64,6 +71,9 @@ impl Resolver {
                 self.bind_expr(expr)?;
             }
             Stmt::Return(expr) => {
+                if self.functions_stack.is_empty() {
+                    return Err(LoxError::Runtime("Cannot return from global scope".into()));
+                }
                 self.bind_expr(expr)?;
             }
             Stmt::WhileLoop { condition, body } => {
@@ -72,6 +82,10 @@ impl Resolver {
                 self.bind_stmt(body)?;
                 self.pop();
             }
+            Stmt::Class { name, methods } => {
+                self.declare(name.lexeme_str());
+                self.define(name.lexeme_str());
+            }
         }
         Ok(())
     }
@@ -79,7 +93,7 @@ impl Resolver {
     fn bind_expr(&mut self, expr: &Expr) -> LoxResult {
         match &expr.kind {
             ExprKind::Identifier(name) => {
-                if !self.stack.is_empty() && !self.is_initialized(&name.lexeme_str()) {
+                if !self.locals_stack.is_empty() && !self.is_initialized(&name.lexeme_str()) {
                     return Err(LoxError::Resolution(
                         "Attempted to resolve variable in its own initializer".into(),
                     ));
@@ -124,7 +138,7 @@ impl Resolver {
     }
 
     fn resolve_local(&mut self, expr: &Expr, name: String) {
-        for (i, frame) in self.stack.iter().rev().enumerate() {
+        for (i, frame) in self.locals_stack.iter().rev().enumerate() {
             if frame.contains_key(&name) {
                 self.resolve(expr, i);
                 break;
@@ -137,33 +151,41 @@ impl Resolver {
     }
 
     fn push(&mut self) {
-        self.stack.push(HashMap::new());
+        self.locals_stack.push(HashMap::new());
     }
 
     fn pop(&mut self) {
-        self.stack.pop();
+        self.locals_stack.pop();
     }
 
     fn declare(&mut self, name: String) {
-        if !self.stack.is_empty() {
+        if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, false);
         }
     }
 
     fn define(&mut self, name: String) {
-        if !self.stack.is_empty() {
+        if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, true);
         }
     }
 
     fn peek(&self) -> &HashMap<String, bool> {
-        let last = self.stack.len() - 1;
-        &self.stack[last]
+        let last = self.locals_stack.len() - 1;
+        &self.locals_stack[last]
     }
 
     fn peek_mut(&mut self) -> &mut HashMap<String, bool> {
-        let last = self.stack.len() - 1;
-        &mut self.stack[last]
+        let last = self.locals_stack.len() - 1;
+        &mut self.locals_stack[last]
+    }
+
+    fn has_name(&self, name: &str) -> bool {
+        if self.locals_stack.is_empty() {
+            false
+        } else {
+            self.peek().contains_key(name)
+        }
     }
 
     fn is_initialized(&self, name: &str) -> bool {

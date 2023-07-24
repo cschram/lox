@@ -124,6 +124,32 @@ impl Environment {
     }
 }
 
+pub struct BoundEnvironment<'a> {
+    env: &'a mut Environment,
+    scope: ScopeHandle,
+}
+
+impl<'a> BoundEnvironment<'a> {
+    pub fn new(env: &'a mut Environment, scope: ScopeHandle) -> Self {
+        Self {
+            env,
+            scope,
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Option<LoxValue> {
+        self.env.get(Some(self.scope), key)
+    }
+
+    pub fn declare(&mut self, key: String, value: LoxValue) {
+        self.env.declare(Some(self.scope), key, value);
+    }
+
+    pub fn assign(&mut self, key: String, value: LoxValue) -> Option<LoxValue> {
+        self.env.assign(Some(self.scope), key, value)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

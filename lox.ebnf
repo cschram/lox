@@ -7,7 +7,10 @@ program =
 
 (* A statement that can accept a variable declaration *)
 declaration =
-    fun_declaration | var_declaration | statement ;
+    class_declaration | fun_declaration | var_declaration | statement ;
+(* Class declaration *)
+class_declaration =
+    class, identifier, "{", { function }, "}" ;
 (* Function declaration *)
 fun_declaration =
     fun, function ;
@@ -51,7 +54,7 @@ expression =
     equality ;
 (* Assignment expressions *)
 assignment =
-    identifier, "=", assignment | logic_or ;
+    [ call, "." ], identifier, "=", assignment | logic_or ;
 logic_or =
     logic_and, { or, logic_and } ;
 logic_and =
@@ -73,7 +76,7 @@ unary =
     ( "!" | "-" ), unary | call ;
 (* Function call *)
 call =
-    primary, { "(", { arguments }, ")" } ;
+    primary, { ( "(", { arguments }, ")" ) | ( ".", identifier ) } ;
 (* Function call arguments *)
 arguments =
     expression, { ",", expression } ;

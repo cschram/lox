@@ -1,5 +1,18 @@
-fun greet(name) {
-    print "Hello, " + name + "!";
+class Greeter {
+    init(greeting) {
+        this.greeting = greeting;
+    }
+
+    greet(name) {
+        print this.greeting + ", " + name;
+    }
 }
 
-greet(get_arg(2));
+class HelloGreeter < Greeter {
+    init() {
+        super.init("Hello");
+    }
+}
+
+var greeter = HelloGreeter();
+greeter.greet(get_arg(2));

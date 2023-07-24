@@ -41,6 +41,15 @@ pub enum ExprKind {
         callee: Box<Expr>,
         arguments: Vec<Expr>,
     },
+    Get {
+        left: Box<Expr>,
+        right: Token,
+    },
+    Set {
+        object: Box<Expr>,
+        identifier: Token,
+        value: Box<Expr>,
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -127,6 +136,23 @@ impl Display for Expr {
                         .join(" ")
                 )
             }
+            ExprKind::Get { left, right } => {
+                write!(
+                    f,
+                    "(property {} {})",
+                    left.to_string(),
+                    right.lexeme_str()
+                )
+            }
+            ExprKind::Set { object, identifier, value } => {
+                write!(
+                    f,
+                    "(set (property {} {}) {})",
+                    object.to_string(),
+                    identifier.lexeme_str(),
+                    value.to_string()
+                )
+            }
         }
     }
 }
@@ -155,6 +181,10 @@ pub enum Stmt {
         body: Vec<Stmt>,
     },
     Return(Box<Expr>),
+    Class {
+        name: Token,
+        methods: Vec<Stmt>,
+    }
 }
 
 impl Display for Stmt {
@@ -206,6 +236,18 @@ impl Display for Stmt {
             }
             Self::Return(value) => {
                 write!(f, "(return {})", value)
+            },
+            Self::Class { name, methods } => {
+                write!(
+                    f,
+                    "(class {} ({}))",
+                    name.lexeme_str(),
+                    methods.iter()
+                        .map(|stmt| stmt.to_string())
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                )
+
             }
         }
     }

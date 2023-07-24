@@ -100,6 +100,28 @@ pub const SHADOWING_TEST: &str = r#"
 "#;
 
 pub const CLASS_TEST: &str = r#"
+    class Foo {
+    }
+    var instance = Foo();
+    instance.bar = "baz";
+    print instance.bar;
+"#;
+// pub const CLASS_TEST: &str = r#"
+//     class Greeter {
+//         init(greeting) {
+//             this.greeting = greeting;
+//         }
+
+//         greet(name) {
+//             print this.greeting + ", " + name;
+//         }
+//     }
+
+//     var greeter = Greeter("Hello");
+//     greeter.greet("world");
+// "#;
+
+pub const CLASS_INHERITANCE_TEST: &str = r#"
     class Greeter {
         init(greeting) {
             this.greeting = greeting;
@@ -116,6 +138,14 @@ pub const CLASS_TEST: &str = r#"
         }
     }
 
-    var greeter = HelloGreeter();
-    greeter.greet("world");
+    class HowdyGreeter < Greeter {
+        init() {
+            super.init("Howdy")
+        }
+    }
+
+    var hello = HelloGreeter();
+    var howdy = HowdyGreeter();
+    hello.greet("world");
+    howdy.greet("partner");
 "#;
