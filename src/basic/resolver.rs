@@ -1,4 +1,4 @@
-use super::{ast::*, scanner::*, error::*};
+use super::{error::*, expr::*, scanner::*, stmt::*};
 use std::collections::HashMap;
 
 pub type Locals = HashMap<usize, usize>;

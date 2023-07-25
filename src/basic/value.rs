@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 
-use super::{ast::*, environment::*, error::*, scanner::*};
+use super::{environment::*, error::*, scanner::*, stmt::*, state::LoxState, expr::Expr};
 
 pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
 
@@ -49,6 +49,54 @@ impl LoxFunction {
             body: FunctionBody::Native(body),
             closure: None,
             this: None,
+        }
+    }
+
+    pub fn call(&self, state: &mut LoxState, scope: ScopeHandle, arguments: &[Expr]) -> LoxResult<LoxValue> {
+        if arguments.len() != self.params.len() {
+            Err(LoxError::Runtime(format!(
+                "Function \"{}\" takes {} argument(s)",
+                self.name.clone().unwrap_or("".into()),
+                self.params.len(),
+            )))
+        } else {
+            // Evaluate arguments to get their final value
+            let mut args: Vec<LoxValue> = vec![];
+            for arg in arguments.iter() {
+                args.push(arg.eval(state, scope)?);
+            }
+            let return_value = match &self.body {
+                FunctionBody::Block(statements) => {
+                    let closure = self.closure.expect("Function should have a closure");
+                    // Bind arguments
+                    for (i, arg) in args.drain(0..).enumerate() {
+                        state.env.declare(
+                            Some(closure),
+                            self.params[i].lexeme_str(),
+                            arg,
+                        );
+                    }
+                    // Bind this value
+                    if let Some(this) = &self.this {
+                        state.env.declare(
+                            Some(closure),
+                            "this".into(),
+                            this.clone(),
+                        );
+                    }
+                    // Execute function body
+                    state.stack.push(LoxValue::Nil);
+                    for stmt in statements.iter() {
+                        stmt.eval(state, closure)?;
+                        if matches!(stmt, Stmt::Return(_)) {
+                            break;
+                        }
+                    }
+                    state.stack.pop().unwrap()
+                }
+                FunctionBody::Native(func) => func(args)?,
+            };
+            Ok(return_value)
         }
     }
 }

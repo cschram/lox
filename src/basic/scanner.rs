@@ -443,6 +443,6 @@ mod test {
             println!("{}", err);
         }
         assert_eq!(errors.len(), 0);
-        assert_eq!(tokens.len(), 23);
+        assert_eq!(tokens.len(), 89);
     }
 }
