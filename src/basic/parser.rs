@@ -404,6 +404,8 @@ impl Parser {
             TokenKind::Nil,
         ]) {
             Ok(ExprKind::Literal(self.previous().clone()).into())
+        } else if self.match_tokens(&[TokenKind::This]) {
+            Ok(ExprKind::This(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::Identifier]) {
             Ok(ExprKind::Identifier(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::LeftParen]) {
@@ -571,10 +573,10 @@ mod test {
         for err in errors.iter() {
             println!("Parse Error: {}", err);
         }
-        for stmt in statements.iter() {
-            println!("{}", stmt);
-        }
+        // for stmt in statements.iter() {
+        //     println!("{}", stmt);
+        // }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 4);
+        assert_eq!(statements.len(), 5);
     }
 }

@@ -101,12 +101,25 @@ pub const SHADOWING_TEST: &str = r#"
 
 pub const CLASS_TEST: &str = r#"
     class Greeter {
+        init(greeting) {
+            this.greeting = greeting;
+        }
+
         greet(name) {
-            print "Hello, " + name + "!";
+            print this.greeting + ", " + name + "!";
+        }
+
+        make_greet(name) {
+            fun greet() {
+                print this.greeting + "," + name + "!";
+            }
+            return greet;
         }
     }
-    var greeter = Greeter();
+    var greeter = Greeter("Hello");
     greeter.greet("world");
+    var greet = greeter.make_greet("friends");
+    greet();
 "#;
 // pub const CLASS_TEST: &str = r#"
 //     class Greeter {
@@ -123,6 +136,7 @@ pub const CLASS_TEST: &str = r#"
 //     greeter.greet("world");
 // "#;
 
+#[allow(dead_code)]
 pub const CLASS_INHERITANCE_TEST: &str = r#"
     class Greeter {
         init(greeting) {

@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lazy_static = "1.4.0"
 log = "0.4.19"
 mock-logger = "0.1.1"
 simple_logger = "4.2.0"

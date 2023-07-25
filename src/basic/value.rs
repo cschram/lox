@@ -20,7 +20,7 @@ pub struct LoxFunction {
     pub params: Vec<Token>,
     pub body: FunctionBody,
     pub closure: Option<ScopeHandle>,
-    pub is_method: bool,
+    pub this: Option<LoxValue>,
 }
 
 impl LoxFunction {
@@ -32,7 +32,7 @@ impl LoxFunction {
                 params: params.clone(),
                 body: FunctionBody::Block(body.clone()),
                 closure: Some(scope),
-                is_method: false,
+                this: None,
             })
         } else {
             Err(LoxError::Runtime("Expected a function statement".into()))
@@ -48,7 +48,7 @@ impl LoxFunction {
                 .collect(),
             body: FunctionBody::Native(body),
             closure: None,
-            is_method: false,
+            this: None,
         }
     }
 }
@@ -89,10 +89,12 @@ impl LoxValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_nil(&self) -> bool {
         matches!(self, Self::Nil)
     }
 
+    #[allow(dead_code)]
     pub fn is_boolean(&self) -> bool {
         matches!(self, Self::Boolean(_))
     }
@@ -105,18 +107,22 @@ impl LoxValue {
         matches!(self, Self::String(_))
     }
 
+    #[allow(dead_code)]
     pub fn is_fun(&self) -> bool {
         matches!(self, Self::Function(_))
     }
 
+    #[allow(dead_code)]
     pub fn is_class(&self) -> bool {
         matches!(self, Self::Class(_))
     }
     
+    #[allow(dead_code)]
     pub fn is_object(&self) -> bool {
         matches!(self, Self::Object(_))
     }
 
+    #[allow(dead_code)]
     pub fn get_boolean(&self) -> LoxResult<bool> {
         if let Self::Boolean(value) = self {
             Ok(*value)
@@ -139,6 +145,7 @@ impl LoxValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_string(&self) -> LoxResult<String> {
         if let Self::String(value) = self {
             Ok(value.clone())
@@ -150,6 +157,7 @@ impl LoxValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_fun(&self) -> LoxResult<Rc<RefCell<LoxFunction>>> {
         if let Self::Function(fun) = self {
             Ok(fun.clone())
@@ -161,6 +169,7 @@ impl LoxValue {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_class(&self) -> LoxResult<Rc<RefCell<LoxClass>>> {
         if let Self::Class(class) = self {
             Ok(class.clone())
@@ -231,6 +240,12 @@ impl From<LoxClass> for LoxValue {
 impl From<LoxObject> for LoxValue {
     fn from(value: LoxObject) -> Self {
         Self::Object(Rc::new(RefCell::new(value)))
+    }
+}
+
+impl From<Rc<RefCell<LoxObject>>> for LoxValue {
+    fn from(value: Rc<RefCell<LoxObject>>) -> Self {
+        Self::Object(value)
     }
 }
 

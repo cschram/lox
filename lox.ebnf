@@ -83,7 +83,7 @@ arguments =
 (* Literal values and identifiers *)
 primary =
     number | string | "true" | "false" | "nil" | "(", expression, ")" |
-    identifier ;
+    this | identifier ;
 
 (*** Special literals and keywords ***)
 
@@ -119,3 +119,5 @@ return =
     "return" ;
 class =
     "class" ;
+this =
+    "this" ;

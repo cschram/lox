@@ -1,12 +1,18 @@
-use super::{ast::*, error::*};
+use super::{ast::*, scanner::*, error::*};
 use std::collections::HashMap;
 
 pub type Locals = HashMap<usize, usize>;
 
+#[derive(Clone, Copy)]
+pub enum FunctionType {
+    Function,
+    Method,
+}
+
 pub struct Resolver {
     locals_stack: Vec<HashMap<String, bool>>,
     locals: Locals,
-    functions_stack: Vec<()>,
+    functions_stack: Vec<FunctionType>,
 }
 
 impl Resolver {
@@ -42,17 +48,7 @@ impl Resolver {
                 self.define(name.lexeme_str());
             }
             Stmt::Fun { name, params, body } => {
-                self.define(name.lexeme_str());
-                self.functions_stack.push(());
-                self.push();
-                for param in params.iter() {
-                    self.define(param.lexeme_str());
-                }
-                for stmt in body.iter() {
-                    self.bind_stmt(stmt)?;
-                }
-                self.pop();
-                self.functions_stack.pop();
+                self.resolve_function(name, params, body, FunctionType::Function)?;
             }
             Stmt::Expr(expr) => {
                 self.bind_expr(expr)?;
@@ -84,6 +80,11 @@ impl Resolver {
             }
             Stmt::Class { name, methods } => {
                 self.declare(name.lexeme_str());
+                for method in methods.iter() {
+                    if let Stmt::Fun { name, params, body } = method {
+                        self.resolve_function(name, params, body, FunctionType::Method)?;
+                    }
+                }
                 self.define(name.lexeme_str());
             }
         }
@@ -144,6 +145,24 @@ impl Resolver {
                 break;
             }
         }
+    }
+
+    fn resolve_function(&mut self, name: &Token, params: &[Token], body: &[Stmt], func_type: FunctionType) -> LoxResult {
+        self.define(name.lexeme_str());
+        self.functions_stack.push(func_type);
+        self.push();
+        if matches!(func_type, FunctionType::Method) {
+            self.define("this".into());
+        }
+        for param in params.iter() {
+            self.define(param.lexeme_str());
+        }
+        for stmt in body.iter() {
+            self.bind_stmt(stmt)?;
+        }
+        self.pop();
+        self.functions_stack.pop();
+        Ok(())
     }
 
     fn resolve(&mut self, expr: &Expr, depth: usize) {

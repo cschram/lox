@@ -1,5 +1,8 @@
 use super::scanner::Token;
-use std::{cell::RefCell, fmt::Display};
+use std::{
+    cell::RefCell,
+    fmt::Display
+};
 
 thread_local! {
     static EXPR_COUNT: RefCell<usize> = RefCell::new(0);
@@ -49,7 +52,8 @@ pub enum ExprKind {
         object: Box<Expr>,
         identifier: Token,
         value: Box<Expr>,
-    }
+    },
+    This(Token),
 }
 
 #[derive(PartialEq, Clone)]
@@ -152,6 +156,9 @@ impl Display for Expr {
                     identifier.lexeme_str(),
                     value.to_string()
                 )
+            }
+            ExprKind::This(..) => {
+                write!(f, "(this)")
             }
         }
     }

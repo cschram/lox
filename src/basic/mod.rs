@@ -11,10 +11,11 @@ pub use self::error::*;
 use self::{ast::*, environment::*, parser::*, resolver::*, scanner::*, value::*};
 use log::{error, info};
 use std::{
-    cell::Ref,
+    cell::RefCell,
     collections::HashMap,
     fs::File,
     io::{BufRead, BufReader},
+    rc::Rc,
 };
 
 pub struct Lox {
@@ -202,18 +203,23 @@ impl Lox {
             },
             ExprKind::Call { callee, arguments } => {
                 match self.evaluate_expr(scope, callee)? {
-                    LoxValue::Function(fun) => {
-                        self.call_func(scope, &fun.borrow(), arguments, None)
+                    LoxValue::Function(func) => {
+                        self.call_func(scope, &func.borrow(), arguments)
                     },
                     LoxValue::Class(class) => {
-                        let mut vars = LoxVars::new();
-                        for (name, fun) in class.borrow().methods.iter() {
-                            vars.insert(name.clone(), fun.clone().into());
-                        }
-                        Ok(LoxObject {
+                        let obj = Rc::new(RefCell::new(LoxObject {
                             class: class.clone(),
-                            vars,
-                        }.into())
+                            vars: LoxVars::new(),
+                        }));
+                        for (name, fun) in class.borrow().methods.iter() {
+                            let mut method = fun.clone();
+                            method.this = Some(obj.clone().into());
+                            obj.borrow_mut().vars.insert(name.clone(), method.into());
+                        }
+                        if let Some(init) = obj.borrow().vars.get("init") {
+                            self.call_func(scope, &init.get_fun()?.borrow().clone(), arguments)?;
+                        }
+                        Ok(obj.into())
                     },
                     _ => {
                         Err(LoxError::Runtime("Cannot call a non-function".into()))
@@ -235,6 +241,13 @@ impl Lox {
                 let val = self.evaluate_expr(scope, value)?;
                 obj.borrow_mut().vars.insert(identifier.lexeme_str(), val.clone());
                 Ok(val)
+            }
+            ExprKind::This(..) => {
+                let scope = match self.locals.get(&expr.id()) {
+                    Some(depth) => self.env.ancestor_scope(scope, *depth),
+                    None => Some(GLOBAL_SCOPE),
+                };
+                self.env.get(scope, "this").ok_or_else(|| LoxError::Runtime("Undefined variable \"this\"".into()))
             }
         }
     }
@@ -338,7 +351,7 @@ impl Lox {
         }
     }
 
-    fn call_func(&mut self, scope: ScopeHandle, func: &LoxFunction, arguments: &[Expr], _this: Option<&mut LoxValue>) -> LoxResult<LoxValue> {
+    fn call_func(&mut self, scope: ScopeHandle, func: &LoxFunction, arguments: &[Expr]) -> LoxResult<LoxValue> {
         if arguments.len() != func.params.len() {
             Err(LoxError::Runtime(format!(
                 "Function \"{}\" takes {} argument(s)",
@@ -346,6 +359,7 @@ impl Lox {
                 func.params.len(),
             )))
         } else {
+            // Evaluate arguments to get their final value
             let mut args: Vec<LoxValue> = vec![];
             for arg in arguments.iter() {
                 args.push(self.evaluate_expr(scope, arg)?);
@@ -353,6 +367,7 @@ impl Lox {
             let return_value = match &func.body {
                 FunctionBody::Block(statements) => {
                     let closure = func.closure.expect("Function should have a closure");
+                    // Bind arguments
                     for (i, arg) in args.drain(0..).enumerate() {
                         self.env.declare(
                             Some(closure),
@@ -360,6 +375,15 @@ impl Lox {
                             arg,
                         );
                     }
+                    // Bind this value
+                    if let Some(this) = &func.this {
+                        self.env.declare(
+                            Some(closure),
+                            "this".into(),
+                            this.clone(),
+                        );
+                    }
+                    // Execute function body
                     self.stack.push(LoxValue::Nil);
                     for stmt in statements.iter() {
                         self.evaluate_stmt(closure, stmt)?;
