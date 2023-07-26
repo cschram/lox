@@ -41,7 +41,6 @@ pub enum Stmt {
 
 impl Stmt {
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult {
-        // println!("{}", self);
         match self {
             Stmt::Expr(expr) => {
                 expr.eval(state, scope)?;

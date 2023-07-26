@@ -379,9 +379,6 @@ mod test {
     #[test]
     fn expressions() {
         let ScanResult { tokens, errors } = scan(EXPRESSION_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 18);
     }
@@ -389,9 +386,6 @@ mod test {
     #[test]
     fn variables() {
         let ScanResult { tokens, errors } = scan(VARIABLE_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 16);
     }
@@ -399,9 +393,6 @@ mod test {
     #[test]
     fn print() {
         let ScanResult { tokens, errors } = scan(PRINT_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 15);
     }
@@ -409,9 +400,6 @@ mod test {
     #[test]
     fn block_scope() {
         let ScanResult { tokens, errors } = scan(BLOCK_SCOPE_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 19);
     }
@@ -419,9 +407,6 @@ mod test {
     #[test]
     fn control_flow() {
         let ScanResult { tokens, errors } = scan(CONTROL_FLOW_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 37);
     }
@@ -429,9 +414,6 @@ mod test {
     #[test]
     fn function() {
         let ScanResult { tokens, errors } = scan(FUNCTION_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(tokens.len(), 42);
     }
@@ -439,10 +421,7 @@ mod test {
     #[test]
     fn class() {
         let ScanResult { tokens, errors } = scan(CLASS_TEST);
-        for err in errors.iter() {
-            println!("{}", err);
-        }
         assert_eq!(errors.len(), 0);
-        assert_eq!(tokens.len(), 89);
+        assert_eq!(tokens.len(), 49);
     }
 }

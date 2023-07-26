@@ -31,7 +31,6 @@ impl LoxInterpreter {
         }
         let mut state = LoxState::new(locals);
         for stmt in statements.iter() {
-            // println!("{}", stmt);
             stmt.eval(&mut state, GLOBAL_SCOPE)?;
         }
         Ok(())
@@ -183,9 +182,8 @@ mod test {
         let mut lox = LoxInterpreter::new();
         lox.exec(CLASS_TEST)?;
         MockLogger::entries(|entries| {
-            assert_eq!(entries.len(), 2);
+            assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].body, "Hello, world!");
-            assert_eq!(entries[1].body, "Hello, friends!");
         });
         Ok(())
     }

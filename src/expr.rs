@@ -82,7 +82,6 @@ impl Expr {
     }
 
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult<LoxValue> {
-        // println!("{}", self);
         match &self.kind {
             ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
             ExprKind::Unary { operator, right } => match operator.kind {
@@ -278,7 +277,6 @@ impl Expr {
                 }
             },
             ExprKind::Get { left, right } => {
-                println!("{}", self);
                 let identifier = right.lexeme_str();
                 let value = left.eval(state, scope)?
                         .get_object()?

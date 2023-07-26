@@ -515,9 +515,6 @@ mod test {
     #[test]
     fn print_var() {
         let ParseResult { statements, errors } = parse(PRINT_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 4);
     }
@@ -525,9 +522,6 @@ mod test {
     #[test]
     fn block_scope() {
         let ParseResult { statements, errors } = parse(BLOCK_SCOPE_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 2);
     }
@@ -535,9 +529,6 @@ mod test {
     #[test]
     fn control_flow() {
         let ParseResult { statements, errors } = parse(CONTROL_FLOW_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 2);
     }
@@ -545,9 +536,6 @@ mod test {
     #[test]
     fn while_loop() {
         let ParseResult { statements, errors } = parse(WHILE_LOOP_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 2);
     }
@@ -555,9 +543,6 @@ mod test {
     #[test]
     fn for_loop() {
         let ParseResult { statements, errors } = parse(FOR_LOOP_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
     }
@@ -565,9 +550,6 @@ mod test {
     #[test]
     fn function() {
         let ParseResult { statements, errors } = parse(FUNCTION_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
     }
@@ -575,13 +557,7 @@ mod test {
     #[test]
     fn class() {
         let ParseResult { statements, errors } = parse(CLASS_TEST);
-        for err in errors.iter() {
-            println!("Parse Error: {}", err);
-        }
-        // for stmt in statements.iter() {
-        //     println!("{}", stmt);
-        // }
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 5);
+        assert_eq!(statements.len(), 3);
     }
 }

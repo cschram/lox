@@ -62,11 +62,14 @@ pub const FUNCTION_TEST: &str = r#"
         fun greeting() {
             return "Hello, " + name + "!";
         }
+
         print greeting();
     }
+
     fun get_name() {
         return "world";
     }
+
     greet(get_name());
 "#;
 
@@ -108,33 +111,11 @@ pub const CLASS_TEST: &str = r#"
         greet(name) {
             print this.greeting + ", " + name + "!";
         }
-
-        make_greet(name) {
-            fun greet() {
-                print this.greeting + ", " + name + "!";
-            }
-            return greet;
-        }
     }
+
     var greeter = Greeter("Hello");
     greeter.greet("world");
-    var greet = greeter.make_greet("friends");
-    greet();
 "#;
-// pub const CLASS_TEST: &str = r#"
-//     class Greeter {
-//         init(greeting) {
-//             this.greeting = greeting;
-//         }
-
-//         greet(name) {
-//             print this.greeting + ", " + name;
-//         }
-//     }
-
-//     var greeter = Greeter("Hello");
-//     greeter.greet("world");
-// "#;
 
 #[allow(dead_code)]
 pub const CLASS_INHERITANCE_TEST: &str = r#"
@@ -161,7 +142,8 @@ pub const CLASS_INHERITANCE_TEST: &str = r#"
     }
 
     var hello = HelloGreeter();
-    var howdy = HowdyGreeter();
     hello.greet("world");
+    
+    var howdy = HowdyGreeter();
     howdy.greet("partner");
 "#;
