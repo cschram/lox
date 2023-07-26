@@ -12,7 +12,7 @@ use std::{
 };
 
 thread_local! {
-    static EXPR_COUNT: RefCell<usize> = RefCell::new(0);
+    static EXPR_COUNT: RefCell<usize> = const { RefCell::new(0) };
 }
 
 fn get_expr_id() -> usize {
@@ -82,6 +82,7 @@ impl Expr {
     }
 
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult<LoxValue> {
+        // println!("{}", self);
         match &self.kind {
             ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
             ExprKind::Unary { operator, right } => match operator.kind {
@@ -260,12 +261,14 @@ impl Expr {
                             method.this = Some(obj.clone().into());
                             obj.borrow_mut().vars.insert(name.clone(), method.into());
                         }
-                        if let Some(init) = obj.borrow().vars.get("init") {
-                            &init
-                                .get_fun()?
-                                .borrow()
-                                .clone()
-                                .call(state, scope, arguments)?;
+                        let init = {
+                            let obj = obj.borrow();
+                            obj.vars.get("init")
+                                .cloned()
+                                .and_then(|init| init.get_fun().ok())
+                        };
+                        if let Some(init) = init {
+                            init.borrow().call(state, scope, arguments)?;
                         }
                         Ok(obj.into())
                     },
@@ -275,6 +278,7 @@ impl Expr {
                 }
             },
             ExprKind::Get { left, right } => {
+                println!("{}", self);
                 let identifier = right.lexeme_str();
                 let value = left.eval(state, scope)?
                         .get_object()?
@@ -310,7 +314,7 @@ impl From<ExprKind> for Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            ExprKind::Literal(value) => write!(f, "{}", value.lexeme_str()),
+            ExprKind::Literal(value) => write!(f, "(literal {})", value.lexeme_str()),
             ExprKind::Unary { operator, right } => {
                 write!(
                     f,
@@ -333,10 +337,10 @@ impl fmt::Display for Expr {
                 )
             }
             ExprKind::Grouping(inner) => {
-                write!(f, "{}", inner)
+                write!(f, "(grouping {})", inner)
             }
             ExprKind::Identifier(name) => {
-                write!(f, "{}", name.lexeme_str())
+                write!(f, "(identifier {})", name.lexeme_str())
             }
             ExprKind::Assignment { name, value } => {
                 write!(f, "(= {} {})", name, value)
@@ -369,7 +373,7 @@ impl fmt::Display for Expr {
             ExprKind::Get { left, right } => {
                 write!(
                     f,
-                    "(property {} {})",
+                    "(get {} {})",
                     left.to_string(),
                     right.lexeme_str()
                 )
@@ -377,7 +381,7 @@ impl fmt::Display for Expr {
             ExprKind::Set { object, identifier, value } => {
                 write!(
                     f,
-                    "(set (property {} {}) {})",
+                    "(set (get {} {}) {})",
                     object.to_string(),
                     identifier.lexeme_str(),
                     value.to_string()

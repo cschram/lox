@@ -373,8 +373,8 @@ pub fn scan(source: &str) -> ScanResult {
 
 #[cfg(test)]
 mod test {
-    use super::super::super::test_scripts::*;
     use super::*;
+    use crate::test_scripts::*;
 
     #[test]
     fn expressions() {

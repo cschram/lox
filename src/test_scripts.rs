@@ -111,7 +111,7 @@ pub const CLASS_TEST: &str = r#"
 
         make_greet(name) {
             fun greet() {
-                print this.greeting + "," + name + "!";
+                print this.greeting + ", " + name + "!";
             }
             return greet;
         }

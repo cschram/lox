@@ -1,4 +1,4 @@
-use super::{
+use crate::{
     error::*,
     expr::{Expr, ExprKind},
     scanner::{ScanResult, Token, TokenKind, scan},
@@ -509,8 +509,8 @@ pub fn parse(source: &str) -> ParseResult {
 
 #[cfg(test)]
 mod test {
-    use super::super::super::test_scripts::*;
     use super::*;
+    use crate::test_scripts::*;
 
     #[test]
     fn print_var() {

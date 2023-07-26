@@ -1,4 +1,4 @@
-use super::{error::*, expr::*, scanner::*, stmt::*};
+use crate::{error::*, expr::*, scanner::*, stmt::*};
 use std::collections::HashMap;
 
 pub type Locals = HashMap<usize, usize>;
@@ -214,9 +214,11 @@ impl Resolver {
 
 #[cfg(test)]
 mod test {
-    use super::super::super::test_scripts::*;
-    use super::super::parser::*;
     use super::*;
+    use crate::{
+        parser::*,
+        test_scripts::*,
+    };
 
     fn local_keys(locals: &Locals) -> Vec<&usize> {
         let mut keys = locals.keys().collect::<Vec<&usize>>();

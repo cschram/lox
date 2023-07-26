@@ -41,6 +41,7 @@ pub enum Stmt {
 
 impl Stmt {
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult {
+        // println!("{}", self);
         match self {
             Stmt::Expr(expr) => {
                 expr.eval(state, scope)?;
@@ -107,7 +108,7 @@ impl Stmt {
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Expr(expr) => write!(f, "({})", expr),
+            Self::Expr(expr) => write!(f, "(expr {})", expr),
             Self::Print(expr) => write!(f, "(print {})", expr),
             Self::Var { name, initializer } => match initializer {
                 Some(expr) => write!(f, "(var {} {})", name.lexeme_str(), expr),

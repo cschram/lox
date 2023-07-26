@@ -1,16 +1,5 @@
-mod builtins;
-mod environment;
-mod error;
-mod expr;
-mod parser;
-mod resolver;
-mod scanner;
-mod state;
-mod stmt;
-mod value;
 
-pub use self::error::*;
-use self::{environment::*, parser::*, resolver::*, state::LoxState};
+use crate::{environment::*, error::*, parser::*, resolver::*, state::LoxState};
 use log::error;
 use std::{
     collections::HashMap,
@@ -18,9 +7,9 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-pub struct Lox;
+pub struct LoxInterpreter;
 
-impl Lox {
+impl LoxInterpreter {
     pub fn new() -> Self {
         Self{}
     }
@@ -42,6 +31,7 @@ impl Lox {
         }
         let mut state = LoxState::new(locals);
         for stmt in statements.iter() {
+            // println!("{}", stmt);
             stmt.eval(&mut state, GLOBAL_SCOPE)?;
         }
         Ok(())
@@ -70,7 +60,7 @@ mod test {
     #[test]
     fn print() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(PRINT_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -83,7 +73,7 @@ mod test {
     #[test]
     fn block_scope() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(BLOCK_SCOPE_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -96,7 +86,7 @@ mod test {
     #[test]
     fn control_flow() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(CONTROL_FLOW_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -109,7 +99,7 @@ mod test {
     #[test]
     fn while_loop() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(WHILE_LOOP_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 4);
@@ -124,7 +114,7 @@ mod test {
     #[test]
     fn for_loop() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(FOR_LOOP_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 5);
@@ -140,7 +130,7 @@ mod test {
     #[test]
     fn builtins() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(BUILTINS_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
@@ -152,7 +142,7 @@ mod test {
     #[test]
     fn function() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(FUNCTION_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
@@ -164,7 +154,7 @@ mod test {
     #[test]
     fn function_closure() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(FUNCTION_CLOSURE_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -177,7 +167,7 @@ mod test {
     #[test]
     fn shadowing() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(SHADOWING_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 2);
@@ -190,11 +180,12 @@ mod test {
     #[test]
     fn class() -> LoxResult {
         mock_logger::init();
-        let mut lox = Lox::new();
+        let mut lox = LoxInterpreter::new();
         lox.exec(CLASS_TEST)?;
         MockLogger::entries(|entries| {
-            assert_eq!(entries.len(), 1);
+            assert_eq!(entries.len(), 2);
             assert_eq!(entries[0].body, "Hello, world!");
+            assert_eq!(entries[1].body, "Hello, friends!");
         });
         Ok(())
     }
