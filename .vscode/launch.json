@@ -1,7 +1,4 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -17,12 +14,16 @@
                 "filter": {
                     "name": "lox",
                     "kind": "bin"
+                },
+                "env": {
+                    "RUST_BACKTRACE": "full"
                 }
             },
             "args": ["scripts/hello.lox", "world"],
             "cwd": "${workspaceFolder}",
+            "sourceLanguages": ["rust"],
             "env": {
-                "RUST_BACKTRACE": "full"
+                "PATH": "$PATH:$HOME/.cargo/bin"
             }
         },
         {
@@ -39,12 +40,16 @@
                 "filter": {
                     "name": "lox",
                     "kind": "bin"
+                },
+                "env": {
+                    "RUST_BACKTRACE": "full"
                 }
             },
             "args": [],
             "cwd": "${workspaceFolder}",
+            "sourceLanguages": ["rust"],
             "env": {
-                "RUST_BACKTRACE": "full"
+                "PATH": "$PATH:$HOME/.cargo/bin"
             }
         }
     ]

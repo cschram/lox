@@ -257,6 +257,9 @@ impl Expr {
                         }));
                         for (name, fun) in class.borrow().methods.iter() {
                             let mut method = fun.clone();
+                            if matches!(&method.name, Some(name) if name == "init") {
+                                method.is_constructor = true;
+                            }
                             method.this = Some(obj.clone().into());
                             obj.borrow_mut().vars.insert(name.clone(), method.into());
                         }

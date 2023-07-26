@@ -3,16 +3,24 @@ use std::collections::HashMap;
 
 pub type Locals = HashMap<usize, usize>;
 
-#[derive(Clone, Copy)]
-pub enum FunctionType {
+#[derive(PartialEq, Clone, Copy)]
+enum FunctionType  {
     Function,
+    Constructor,
     Method,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+enum ClassType {
+    None,
+    Class,
 }
 
 pub struct Resolver {
     locals_stack: Vec<HashMap<String, bool>>,
     locals: Locals,
     functions_stack: Vec<FunctionType>,
+    current_class: ClassType,
 }
 
 impl Resolver {
@@ -21,6 +29,7 @@ impl Resolver {
             locals_stack: vec![],
             locals: HashMap::new(),
             functions_stack: vec![],
+            current_class: ClassType::None,
         };
         for stmt in statements.iter() {
             resolver.bind_stmt(stmt)?;
@@ -70,6 +79,9 @@ impl Resolver {
                 if self.functions_stack.is_empty() {
                     return Err(LoxError::Runtime("Cannot return from global scope".into()));
                 }
+                if self.functions_stack[self.functions_stack.len() - 1] == FunctionType::Constructor {
+                    return Err(LoxError::Resolution("Cannot return from constructor".into()));
+                }
                 self.bind_expr(expr)?;
             }
             Stmt::WhileLoop { condition, body } => {
@@ -79,13 +91,15 @@ impl Resolver {
                 self.pop();
             }
             Stmt::Class { name, methods } => {
+                self.current_class = ClassType::Class;
                 self.declare(name.lexeme_str());
                 for method in methods.iter() {
                     if let Stmt::Fun { name, params, body } = method {
-                        self.resolve_function(name, params, body, FunctionType::Method)?;
+                        self.resolve_function(name, params, body, if name.lexeme_str() == "init".to_string() { FunctionType::Constructor } else { FunctionType::Method })?;
                     }
                 }
                 self.define(name.lexeme_str());
+                self.current_class = ClassType::None;
             }
         }
         Ok(())
@@ -133,6 +147,11 @@ impl Resolver {
             ExprKind::Unary { operator: _, right } => {
                 self.bind_expr(right)?;
             }
+            ExprKind::This(_) => {
+                if self.current_class == ClassType::None {
+                    return Err(LoxError::Resolution("Cannot use \"this\" outside of a class".into()))
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -151,7 +170,7 @@ impl Resolver {
         self.define(name.lexeme_str());
         self.functions_stack.push(func_type);
         self.push();
-        if matches!(func_type, FunctionType::Method) {
+        if func_type == FunctionType::Method {
             self.define("this".into());
         }
         for param in params.iter() {
@@ -297,5 +316,61 @@ mod test {
         assert_eq!(locals.get(keys[0]), Some(&0));
         assert_eq!(locals.get(keys[1]), Some(&0));
         Ok(())
+    }
+
+    #[test]
+    fn class() -> LoxResult {
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(CLASS_TEST);
+        let locals = Resolver::bind(&statements)?;
+        let keys = local_keys(&locals);
+        assert_eq!(locals.len(), 1);
+        assert_eq!(locals.get(keys[0]), Some(&0));
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_this() {
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(r#"
+            fun invalid_this() {
+                return this;
+            }
+            invalid_this();
+        "#);
+        let result = Resolver::bind(&statements);
+        assert!(result.is_err());
+        assert!(
+            matches!(
+                result,
+                Err(LoxError::Resolution(message)) if message == "Cannot use \"this\" outside of a class".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn constructor_return() {
+        let ParseResult {
+            statements,
+            errors: _,
+        } = parse(r#"
+            class InvalidReturn {
+                init() {
+                    return "foo";
+                }
+            }
+        "#);
+        let result = Resolver::bind(&statements);
+        assert!(result.is_err());
+        assert!(
+            matches!(
+                result,
+                Err(LoxError::Resolution(message)) if message == "Cannot return from constructor".to_string()
+            )
+        );
     }
 }

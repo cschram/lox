@@ -21,6 +21,7 @@ pub struct LoxFunction {
     pub body: FunctionBody,
     pub closure: Option<ScopeHandle>,
     pub this: Option<LoxValue>,
+    pub is_constructor: bool,
 }
 
 impl LoxFunction {
@@ -33,6 +34,7 @@ impl LoxFunction {
                 body: FunctionBody::Block(body.clone()),
                 closure: Some(scope),
                 this: None,
+                is_constructor: false,
             })
         } else {
             Err(LoxError::Runtime("Expected a function statement".into()))
@@ -49,6 +51,7 @@ impl LoxFunction {
             body: FunctionBody::Native(body),
             closure: None,
             this: None,
+            is_constructor: false,
         }
     }
 
@@ -77,15 +80,22 @@ impl LoxFunction {
                         );
                     }
                     // Bind this value
-                    if let Some(this) = &self.this {
+                    let ret_value = if let Some(this) = &self.this {
                         state.env.declare(
                             Some(closure),
                             "this".into(),
                             this.clone(),
                         );
-                    }
+                        if self.is_constructor {
+                            this.clone()
+                        } else {
+                            LoxValue::Nil
+                        }
+                    } else {
+                        LoxValue::Nil
+                    };
                     // Execute function body
-                    state.stack.push(LoxValue::Nil);
+                    state.stack.push(ret_value);
                     for stmt in statements.iter() {
                         stmt.eval(state, closure)?;
                         if matches!(stmt, Stmt::Return(_)) {
