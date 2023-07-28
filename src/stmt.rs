@@ -1,13 +1,15 @@
 use super::{
+    class::*,
     environment::ScopeHandle,
     error::*,
-    expr::Expr,
+    expr::{Expr, ExprKind},
+    function::*,
     scanner::Token,
     state::LoxState,
-    value::{LoxValue, LoxFunction, LoxClass},
+    value::LoxValue,
 };
-use std::{fmt, collections::HashMap};
 use log::info;
+use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 #[derive(PartialEq, Clone)]
 pub enum Stmt {
@@ -35,8 +37,9 @@ pub enum Stmt {
     Return(Box<Expr>),
     Class {
         name: Token,
+        superclass: Option<Box<Expr>>,
         methods: Vec<Stmt>,
-    }
+    },
 }
 
 impl Stmt {
@@ -82,22 +85,47 @@ impl Stmt {
             }
             Stmt::Fun { name, .. } => {
                 let fun = LoxFunction::from_stmt(self, state.env.new_scope(Some(scope)))?;
-                state.env.declare(Some(scope), name.lexeme_str(), fun.into());
+                state
+                    .env
+                    .declare(Some(scope), name.lexeme_str(), fun.into());
             }
             Stmt::Return(expr) => {
                 let last = state.stack.len() - 1;
                 state.stack[last] = expr.eval(state, scope)?;
             }
-            Stmt::Class { name, methods: method_defs } => {
+            Stmt::Class {
+                name,
+                superclass,
+                methods: method_defs,
+            } => {
                 let mut methods = HashMap::<String, LoxFunction>::new();
                 for def in method_defs.iter() {
                     let fun = LoxFunction::from_stmt(def, scope)?;
                     methods.insert(fun.name.clone().unwrap(), fun);
                 }
-                state.env.declare(Some(scope), name.lexeme_str(), LoxClass {
-                    name: name.lexeme_str(),
-                    methods,
-                }.into());
+                let mut superclass_ref: Option<Rc<RefCell<LoxClass>>> = None;
+                if let Some(expr) = superclass {
+                    if let ExprKind::Identifier(name) = &expr.kind {
+                        superclass_ref = Some(
+                            state
+                                .resolve_local(scope, expr, &name.lexeme_str())?
+                                .get_class()?
+                                .clone(),
+                        );
+                    } else {
+                        unreachable!("Expected an identifier");
+                    }
+                }
+                state.env.declare(
+                    Some(scope),
+                    name.lexeme_str(),
+                    LoxClass {
+                        name: name.lexeme_str(),
+                        superclass: superclass_ref,
+                        methods,
+                    }
+                    .into(),
+                );
             }
         }
         Ok(())
@@ -153,18 +181,26 @@ impl fmt::Display for Stmt {
             }
             Self::Return(value) => {
                 write!(f, "(return {})", value)
-            },
-            Self::Class { name, methods } => {
+            }
+            Self::Class {
+                name,
+                superclass,
+                methods,
+            } => {
                 write!(
                     f,
-                    "(class {} ({}))",
+                    "(class {} ({}) ({}))",
                     name.lexeme_str(),
-                    methods.iter()
+                    match superclass {
+                        Some(superclass) => superclass.to_string(),
+                        None => "None".to_string(),
+                    },
+                    methods
+                        .iter()
                         .map(|stmt| stmt.to_string())
                         .collect::<Vec<String>>()
                         .join(" ")
                 )
-
             }
         }
     }

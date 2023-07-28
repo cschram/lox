@@ -1,7 +1,7 @@
 use crate::{
     error::*,
     expr::{Expr, ExprKind},
-    scanner::{ScanResult, Token, TokenKind, scan},
+    scanner::{scan, ScanResult, Token, TokenKind},
     stmt::Stmt,
 };
 use log::error;
@@ -58,19 +58,37 @@ impl Parser {
     }
 
     fn class(&mut self) -> LoxResult<Stmt> {
-        let name = self.consume(TokenKind::Identifier, "Expected identifier")?.clone();
+        let name = self
+            .consume(TokenKind::Identifier, "Expected identifier")?
+            .clone();
+        let superclass = if self.match_tokens(&[TokenKind::Less]) {
+            Some(Box::new(
+                ExprKind::Identifier(
+                    self.consume(TokenKind::Identifier, "Expected an identifier")?
+                        .clone(),
+                )
+                .into(),
+            ))
+        } else {
+            None
+        };
         self.consume(TokenKind::LeftBrace, "Expected opening brace")?;
         let mut methods: Vec<Stmt> = vec![];
         while !self.check(TokenKind::RightBrace) && !self.is_at_end() {
             methods.push(self.function()?);
         }
         self.consume(TokenKind::RightBrace, "Expected closing brace")?;
-        Ok(Stmt::Class { name, methods })
+        Ok(Stmt::Class {
+            name,
+            superclass,
+            methods,
+        })
     }
 
     fn function(&mut self) -> LoxResult<Stmt> {
         let name = self
-            .consume(TokenKind::Identifier, "Expected identifier")?.clone();
+            .consume(TokenKind::Identifier, "Expected identifier")?
+            .clone();
         self.consume(TokenKind::LeftParen, "Expected opening parenthesis")?;
         let params: Vec<Token> = self.fun_parameters()?;
         self.consume(TokenKind::RightParen, "Expected closing parenthesis")?;
@@ -238,7 +256,11 @@ impl Parser {
                     value: Box::new(right),
                 }
                 .into();
-            } else if let ExprKind::Get { left: object, right: identifier } = left.kind {
+            } else if let ExprKind::Get {
+                left: object,
+                right: identifier,
+            } = left.kind
+            {
                 left = ExprKind::Set {
                     object,
                     identifier,
@@ -387,7 +409,8 @@ impl Parser {
                 .into();
                 break;
             } else if self.match_tokens(&[TokenKind::Dot]) {
-                let identifier = self.consume(TokenKind::Identifier, "Expected identifier after \".\"")?;
+                let identifier =
+                    self.consume(TokenKind::Identifier, "Expected identifier after \".\"")?;
                 left = ExprKind::Get {
                     left: Box::new(left),
                     right: identifier.clone(),
@@ -553,11 +576,18 @@ mod test {
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
     }
-    
+
     #[test]
     fn class() {
         let ParseResult { statements, errors } = parse(CLASS_TEST);
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 3);
+    }
+
+    #[test]
+    fn class_inheritance() {
+        let ParseResult { statements, errors } = parse(CLASS_INHERITANCE_TEST);
+        assert_eq!(errors.len(), 0);
+        assert_eq!(statements.len(), 7);
     }
 }

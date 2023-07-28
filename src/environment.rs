@@ -70,7 +70,6 @@ impl Environment {
         }
     }
 
-    // TODO: Value vs Reference semantics
     pub fn get(&self, handle: Option<ScopeHandle>, key: &str) -> Option<LoxValue> {
         let scope = self.get_scope(handle.unwrap_or(GLOBAL_SCOPE))?;
         scope

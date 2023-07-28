@@ -1,4 +1,3 @@
-
 use crate::{environment::*, error::*, parser::*, resolver::*, state::LoxState};
 use log::error;
 use std::{
@@ -11,9 +10,9 @@ pub struct LoxInterpreter;
 
 impl LoxInterpreter {
     pub fn new() -> Self {
-        Self{}
+        Self {}
     }
-    
+
     pub fn exec(&mut self, source: &str) -> LoxResult {
         let ParseResult {
             statements,

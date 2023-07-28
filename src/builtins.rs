@@ -1,4 +1,4 @@
-use super::{value::*, environment::LoxVars};
+use super::{environment::LoxVars, function::*, value::*};
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},

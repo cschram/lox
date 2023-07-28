@@ -10,7 +10,7 @@ declaration =
     class_declaration | fun_declaration | var_declaration | statement ;
 (* Class declaration *)
 class_declaration =
-    class, identifier, "{", { function }, "}" ;
+    class, identifier, [ "<", identifier ], "{", { function }, "}" ;
 (* Function declaration *)
 fun_declaration =
     fun, function ;

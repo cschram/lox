@@ -1,15 +1,12 @@
 use super::{
+    environment::{ScopeHandle, GLOBAL_SCOPE},
+    error::*,
+    object::*,
     scanner::{Token, TokenKind},
     state::LoxState,
-    environment::{ScopeHandle, LoxVars, GLOBAL_SCOPE},
-    error::*,
-    value::{LoxValue, LoxObject},
+    value::LoxValue,
 };
-use std::{
-    cell::RefCell,
-    fmt,
-    rc::Rc,
-};
+use std::{cell::RefCell, fmt};
 
 thread_local! {
     static EXPR_COUNT: RefCell<usize> = const { RefCell::new(0) };
@@ -190,35 +187,24 @@ impl Expr {
                         operator
                     ))),
                 }
-            },
-            ExprKind::Grouping(inner) => inner.eval(state, scope),
-            ExprKind::Identifier(name) => {
-                let scope = match state.locals.get(&self._id) {
-                    Some(depth) => state.env.ancestor_scope(scope, *depth).unwrap_or_else(|| {
-                        panic!("Invalid ancestor scope for \"{}\"", name.lexeme_str())
-                    }),
-                    None => GLOBAL_SCOPE,
-                };
-                state.env
-                    .get(Some(scope), &name.lexeme_str())
-                    .ok_or(LoxError::Runtime(format!(
-                        "Undefined variable \"{}\"",
-                        name.lexeme_str()
-                    )))
             }
+            ExprKind::Grouping(inner) => inner.eval(state, scope),
+            ExprKind::Identifier(name) => state.resolve_local(scope, self, &name.lexeme_str()),
             ExprKind::Assignment { name, value } => {
                 let val = value.eval(state, scope)?;
-                let scope = match state.locals.get(&self._id) {
-                    Some(distance) => {
-                        state.env
+                let scope =
+                    match state.locals.get(&self._id) {
+                        Some(distance) => state
+                            .env
                             .ancestor_scope(scope, *distance)
                             .unwrap_or_else(|| {
                                 panic!("Invalid ancestor scope for \"{}\"", name.lexeme_str())
-                            })
-                    }
-                    None => GLOBAL_SCOPE,
-                };
-                state.env.assign(Some(scope), name.lexeme_str(), val.clone());
+                            }),
+                        None => GLOBAL_SCOPE,
+                    };
+                state
+                    .env
+                    .assign(Some(scope), name.lexeme_str(), val.clone());
                 Ok(val)
             }
             ExprKind::Logical {
@@ -245,63 +231,41 @@ impl Expr {
                     operator.lexeme_str()
                 ))),
             },
-            ExprKind::Call { callee, arguments } => {
-                match callee.eval(state, scope)? {
-                    LoxValue::Function(func) => {
-                        func.borrow().call(state, scope, arguments)
-                    },
-                    LoxValue::Class(class) => {
-                        let obj = Rc::new(RefCell::new(LoxObject {
-                            class: class.clone(),
-                            vars: LoxVars::new(),
-                        }));
-                        for (name, fun) in class.borrow().methods.iter() {
-                            let mut method = fun.clone();
-                            if matches!(&method.name, Some(name) if name == "init") {
-                                method.is_constructor = true;
-                            }
-                            method.this = Some(obj.clone().into());
-                            obj.borrow_mut().vars.insert(name.clone(), method.into());
-                        }
-                        let init = {
-                            let obj = obj.borrow();
-                            obj.vars.get("init")
-                                .cloned()
-                                .and_then(|init| init.get_fun().ok())
-                        };
-                        if let Some(init) = init {
-                            init.borrow().call(state, scope, arguments)?;
-                        }
-                        Ok(obj.into())
-                    },
-                    _ => {
-                        Err(LoxError::Runtime("Cannot call a non-function".into()))
-                    }
+            ExprKind::Call { callee, arguments } => match callee.eval(state, scope)? {
+                LoxValue::Function(func) => func.borrow().call(state, scope, arguments),
+                LoxValue::Class(class) => {
+                    let obj = LoxObject::instantiate(class, state, scope, arguments)?;
+                    Ok(LoxValue::from(obj))
                 }
+                _ => Err(LoxError::Runtime("Cannot call a non-function".into())),
             },
             ExprKind::Get { left, right } => {
                 let identifier = right.lexeme_str();
-                let value = left.eval(state, scope)?
-                        .get_object()?
-                        .borrow()
-                        .vars.get(&identifier)
-                        .cloned()
-                        .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", identifier)))?;
+                let value = left
+                    .eval(state, scope)?
+                    .get_object()?
+                    .borrow()
+                    .vars
+                    .get(&identifier)
+                    .cloned()
+                    .ok_or_else(|| {
+                        LoxError::Runtime(format!("Undefined variable \"{}\"", identifier))
+                    })?;
                 Ok(value)
             }
-            ExprKind::Set { object, identifier, value } => {
+            ExprKind::Set {
+                object,
+                identifier,
+                value,
+            } => {
                 let obj = object.eval(state, scope)?.get_object()?;
                 let val = value.eval(state, scope)?;
-                obj.borrow_mut().vars.insert(identifier.lexeme_str(), val.clone());
+                obj.borrow_mut()
+                    .vars
+                    .insert(identifier.lexeme_str(), val.clone());
                 Ok(val)
             }
-            ExprKind::This(..) => {
-                let scope = match state.locals.get(&self._id) {
-                    Some(depth) => state.env.ancestor_scope(scope, *depth),
-                    None => Some(GLOBAL_SCOPE),
-                };
-                state.env.get(scope, "this").ok_or_else(|| LoxError::Runtime("Undefined variable \"this\"".into()))
-            }
+            ExprKind::This(..) => state.resolve_local(scope, self, "this"),
         }
     }
 }
@@ -372,20 +336,19 @@ impl fmt::Display for Expr {
                 )
             }
             ExprKind::Get { left, right } => {
-                write!(
-                    f,
-                    "(get {} {})",
-                    left.to_string(),
-                    right.lexeme_str()
-                )
+                write!(f, "(get {} {})", left, right.lexeme_str())
             }
-            ExprKind::Set { object, identifier, value } => {
+            ExprKind::Set {
+                object,
+                identifier,
+                value,
+            } => {
                 write!(
                     f,
                     "(set (get {} {}) {})",
-                    object.to_string(),
+                    object,
                     identifier.lexeme_str(),
-                    value.to_string()
+                    value
                 )
             }
             ExprKind::This(..) => {

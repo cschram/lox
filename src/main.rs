@@ -1,8 +1,11 @@
 mod builtins;
+mod class;
 mod environment;
 mod error;
 mod expr;
+mod function;
 mod interpreter;
+mod object;
 mod parser;
 mod resolver;
 mod scanner;
@@ -13,10 +16,7 @@ mod value;
 #[cfg(test)]
 mod test_scripts;
 
-use crate::{
-    interpreter::LoxInterpreter,
-    error::LoxResult,
-};
+use crate::{error::LoxResult, interpreter::LoxInterpreter};
 use std::env;
 
 fn main() -> LoxResult {
