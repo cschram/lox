@@ -186,4 +186,17 @@ mod test {
         });
         Ok(())
     }
+
+    #[test]
+    fn class_inheritance() -> LoxResult {
+        mock_logger::init();
+        let mut lox = LoxInterpreter::new();
+        lox.exec(CLASS_INHERITANCE_TEST)?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries[0].body, "Hello, world!");
+            assert_eq!(entries[1].body, "Howdy, partner!");
+        });
+        Ok(())
+    }
 }

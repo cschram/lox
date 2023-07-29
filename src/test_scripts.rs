@@ -125,7 +125,7 @@ pub const CLASS_INHERITANCE_TEST: &str = r#"
         }
 
         greet(name) {
-            print this.greeting + ", " + name;
+            print this.greeting + ", " + name + "!";
         }
     }
 

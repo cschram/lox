@@ -1,5 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use crate::environment::LoxProperties;
+
 use super::{class::*, error::*, function::*, object::*, scanner::*};
 
 #[derive(PartialEq, Clone)]
@@ -11,6 +13,7 @@ pub enum LoxValue {
     Function(Rc<RefCell<LoxFunction>>),
     Class(Rc<RefCell<LoxClass>>),
     Object(Rc<RefCell<LoxObject>>),
+    Super(Rc<LoxProperties>)
 }
 
 impl LoxValue {
@@ -23,6 +26,7 @@ impl LoxValue {
             Self::Function(_) => "Function".into(),
             Self::Class(_) => "Class".into(),
             Self::Object(_) => "Object".into(),
+            Self::Super(_) => "Super".into(),
         }
     }
 
@@ -57,6 +61,11 @@ impl LoxValue {
     #[allow(dead_code)]
     pub fn is_object(&self) -> bool {
         matches!(self, Self::Object(_))
+    }
+
+    #[allow(dead_code)]
+    pub fn is_super(&self) -> bool {
+        matches!(self, Self::Super(_))
     }
 
     #[allow(dead_code)]
@@ -129,6 +138,17 @@ impl LoxValue {
         }
     }
 
+    pub fn get_super(&self) -> LoxResult<Rc<LoxProperties>> {
+        if let Self::Super(methods) = self {
+            Ok(methods.clone())
+        } else {
+            Err(LoxError::Runtime(format!(
+                "Expected Super, got \"{}\"",
+                self.type_str()
+            )))
+        }
+    }
+
     pub fn is_truthy(&self) -> bool {
         match self {
             Self::Nil => false,
@@ -186,6 +206,12 @@ impl From<Rc<RefCell<LoxObject>>> for LoxValue {
     }
 }
 
+impl From<Rc<LoxProperties>> for LoxValue {
+    fn from(value: Rc<LoxProperties>) -> Self {
+        Self::Super(value)
+    }
+}
+
 impl From<Token> for LoxValue {
     fn from(token: Token) -> Self {
         match token.literal {
@@ -218,6 +244,9 @@ impl ToString for LoxValue {
             }
             Self::Object(obj) => {
                 format!("<instance {}>", obj.borrow().class.borrow().name)
+            }
+            Self::Super(_) => {
+                "<super>".into()
             }
         }
     }

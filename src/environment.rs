@@ -1,7 +1,7 @@
 use super::{builtins::*, value::*};
 use std::collections::HashMap;
 
-pub type LoxVars = HashMap<String, LoxValue>;
+pub type LoxProperties = HashMap<String, LoxValue>;
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct ScopeHandle(usize);
@@ -15,13 +15,13 @@ impl std::fmt::Display for ScopeHandle {
 pub const GLOBAL_SCOPE: ScopeHandle = ScopeHandle(0);
 
 pub struct Scope {
-    vars: LoxVars,
+    vars: LoxProperties,
     parent: Option<ScopeHandle>,
     children: Vec<ScopeHandle>,
 }
 
 pub struct Environment {
-    builtins: LoxVars,
+    builtins: LoxProperties,
     scopes: Vec<Option<Scope>>,
 }
 

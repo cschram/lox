@@ -88,6 +88,10 @@ impl LoxFunction {
                     } else {
                         LoxValue::Nil
                     };
+                    // Bind super value
+                    if let Some(super_value) = &self.super_value {
+                        state.env.declare(Some(*closure), "super".into(), super_value.clone());
+                    }
                     // Execute function body
                     state.stack.push(ret_value);
                     for stmt in statements.iter() {

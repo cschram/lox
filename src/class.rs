@@ -10,7 +10,7 @@ pub struct LoxClass {
 }
 
 impl LoxClass {
-    pub fn bind_methods(&self, props: &mut LoxVars, this_value: LoxValue, super_value: Option<LoxValue>) {
+    pub fn bind_methods(&self, props: &mut LoxProperties, this_value: LoxValue, super_value: Option<LoxValue>) {
         for (name, fun) in self.methods.iter() {
             let mut method = fun.clone();
             if matches!(&method.name, Some(name) if name == "init") {

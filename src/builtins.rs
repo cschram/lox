@@ -1,11 +1,11 @@
-use super::{environment::LoxVars, function::*, value::*};
+use super::{environment::LoxProperties, function::*, value::*};
 use std::{
     env,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn get_builtins() -> LoxVars {
-    let mut constants = LoxVars::new();
+pub fn get_builtins() -> LoxProperties {
+    let mut constants = LoxProperties::new();
 
     constants.insert(
         "time".into(),

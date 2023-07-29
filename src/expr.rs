@@ -263,7 +263,13 @@ impl Expr {
                 Ok(val)
             }
             ExprKind::This => state.resolve_local(scope, self, "this"),
-            ExprKind::Super(method) => Ok(LoxValue::Nil)
+            ExprKind::Super(method) => {
+                let super_value = state.resolve_local(scope, self, "super")?.get_super()?;
+                super_value
+                    .get(&method.lexeme_str())
+                    .cloned()
+                    .ok_or_else(|| LoxError::Runtime(format!("Undefined super method \"{}\"", method.lexeme_str())))
+            }
         }
     }
 }
