@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{function::*, object::*};
+use super::{environment::*, function::*, value::*};
 
 #[derive(PartialEq, Clone)]
 pub struct LoxClass {
@@ -10,14 +10,15 @@ pub struct LoxClass {
 }
 
 impl LoxClass {
-    pub fn bind(&self, obj: &mut LoxObject) {
+    pub fn bind_methods(&self, props: &mut LoxVars, this_value: LoxValue, super_value: Option<LoxValue>) {
         for (name, fun) in self.methods.iter() {
             let mut method = fun.clone();
             if matches!(&method.name, Some(name) if name == "init") {
                 method.is_constructor = true;
             }
-            method.this = Some(obj.clone().into());
-            obj.vars.insert(name.clone(), method.into());
+            method.this_value = Some(this_value.clone());
+            method.super_value = super_value.clone();
+            props.insert(name.clone(), method.into());
         }
     }
 }

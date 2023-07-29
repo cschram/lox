@@ -131,13 +131,13 @@ pub const CLASS_INHERITANCE_TEST: &str = r#"
 
     class HelloGreeter < Greeter {
         init() {
-            // super.init("Hello");
+            super.init("Hello");
         }
     }
 
     class HowdyGreeter < Greeter {
         init() {
-            // super.init("Howdy");
+            super.init("Howdy");
         }
     }
 

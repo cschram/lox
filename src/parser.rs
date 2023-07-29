@@ -433,7 +433,10 @@ impl Parser {
         ]) {
             Ok(ExprKind::Literal(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::This]) {
-            Ok(ExprKind::This(self.previous().clone()).into())
+            Ok(ExprKind::This.into())
+        } else if self.match_tokens(&[TokenKind::Super]) {
+            self.consume(TokenKind::Dot, "Expected \".\" after super")?;
+            Ok(ExprKind::Super(self.consume(TokenKind::Identifier, "Expected an identifier")?.clone()).into())
         } else if self.match_tokens(&[TokenKind::Identifier]) {
             Ok(ExprKind::Identifier(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::LeftParen]) {

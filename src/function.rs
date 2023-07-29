@@ -4,7 +4,7 @@ pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum FunctionBody {
-    Block(Vec<Stmt>),
+    Block(Vec<Stmt>, ScopeHandle),
     Native(NativeFunction),
 }
 
@@ -13,8 +13,8 @@ pub struct LoxFunction {
     pub name: Option<String>,
     pub params: Vec<Token>,
     pub body: FunctionBody,
-    pub closure: Option<ScopeHandle>,
-    pub this: Option<LoxValue>,
+    pub this_value: Option<LoxValue>,
+    pub super_value: Option<LoxValue>,
     pub is_constructor: bool,
 }
 
@@ -25,9 +25,9 @@ impl LoxFunction {
             Ok(LoxFunction {
                 name: Some(identifier.clone()),
                 params: params.clone(),
-                body: FunctionBody::Block(body.clone()),
-                closure: Some(scope),
-                this: None,
+                body: FunctionBody::Block(body.clone(), scope),
+                this_value: None,
+                super_value: None,
                 is_constructor: false,
             })
         } else {
@@ -43,8 +43,8 @@ impl LoxFunction {
                 .map(|param| Token::new(TokenKind::Identifier, Some(param.into()), None, 0))
                 .collect(),
             body: FunctionBody::Native(body),
-            closure: None,
-            this: None,
+            this_value: None,
+            super_value: None,
             is_constructor: false,
         }
     }
@@ -68,19 +68,18 @@ impl LoxFunction {
                 args.push(arg.eval(state, scope)?);
             }
             let return_value = match &self.body {
-                FunctionBody::Block(statements) => {
-                    let closure = self.closure.expect("Function should have a closure");
+                FunctionBody::Block(statements, closure) => {
                     // Bind arguments
                     for (i, arg) in args.drain(0..).enumerate() {
                         state
                             .env
-                            .declare(Some(closure), self.params[i].lexeme_str(), arg);
+                            .declare(Some(*closure), self.params[i].lexeme_str(), arg);
                     }
                     // Bind this value
-                    let ret_value = if let Some(this) = &self.this {
+                    let ret_value = if let Some(this) = &self.this_value {
                         state
                             .env
-                            .declare(Some(closure), "this".into(), this.clone());
+                            .declare(Some(*closure), "this".into(), this.clone());
                         if self.is_constructor {
                             this.clone()
                         } else {
@@ -92,7 +91,7 @@ impl LoxFunction {
                     // Execute function body
                     state.stack.push(ret_value);
                     for stmt in statements.iter() {
-                        stmt.eval(state, closure)?;
+                        stmt.eval(state, *closure)?;
                         if matches!(stmt, Stmt::Return(_)) {
                             break;
                         }

@@ -57,7 +57,8 @@ pub enum ExprKind {
         identifier: Token,
         value: Box<Expr>,
     },
-    This(Token),
+    This,
+    Super(Token),
 }
 
 #[derive(PartialEq, Clone)]
@@ -234,8 +235,7 @@ impl Expr {
             ExprKind::Call { callee, arguments } => match callee.eval(state, scope)? {
                 LoxValue::Function(func) => func.borrow().call(state, scope, arguments),
                 LoxValue::Class(class) => {
-                    let obj = LoxObject::instantiate(class, state, scope, arguments)?;
-                    Ok(LoxValue::from(obj))
+                    Ok(LoxObject::instantiate(class, state, scope, arguments)?)
                 }
                 _ => Err(LoxError::Runtime("Cannot call a non-function".into())),
             },
@@ -245,9 +245,7 @@ impl Expr {
                     .eval(state, scope)?
                     .get_object()?
                     .borrow()
-                    .vars
                     .get(&identifier)
-                    .cloned()
                     .ok_or_else(|| {
                         LoxError::Runtime(format!("Undefined variable \"{}\"", identifier))
                     })?;
@@ -261,11 +259,11 @@ impl Expr {
                 let obj = object.eval(state, scope)?.get_object()?;
                 let val = value.eval(state, scope)?;
                 obj.borrow_mut()
-                    .vars
-                    .insert(identifier.lexeme_str(), val.clone());
+                    .set(identifier.lexeme_str(), val.clone());
                 Ok(val)
             }
-            ExprKind::This(..) => state.resolve_local(scope, self, "this"),
+            ExprKind::This => state.resolve_local(scope, self, "this"),
+            ExprKind::Super(method) => Ok(LoxValue::Nil)
         }
     }
 }
@@ -351,8 +349,11 @@ impl fmt::Display for Expr {
                     value
                 )
             }
-            ExprKind::This(..) => {
+            ExprKind::This => {
                 write!(f, "(this)")
+            },
+            ExprKind::Super(method) => {
+                write!(f, "(super {})", method.lexeme_str())
             }
         }
     }

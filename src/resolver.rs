@@ -180,10 +180,17 @@ impl Resolver {
             ExprKind::Unary { operator: _, right } => {
                 self.bind_expr(right)?;
             }
-            ExprKind::This(_) => {
+            ExprKind::This => {
                 if self.current_class == ClassType::None {
                     return Err(LoxError::Resolution(
                         "Cannot use \"this\" outside of a class".into(),
+                    ));
+                }
+            }
+            ExprKind::Super(..) => {
+                if self.current_class == ClassType::None {
+                    return Err(LoxError::Resolution(
+                        "Cannot use \"super\" outside of a class".into(),
                     ));
                 }
             }
