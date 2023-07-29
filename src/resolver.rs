@@ -66,10 +66,11 @@ impl Resolver {
                 self.bind_expr(expr)?;
             }
             Stmt::IfElse {
-                condition: _,
+                condition,
                 body,
                 else_branch,
             } => {
+                self.bind_expr(condition)?;
                 self.bind_stmt(body)?;
                 if let Some(body) = else_branch {
                     self.bind_stmt(body)?;

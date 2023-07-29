@@ -31,6 +31,6 @@ impl LoxState {
         }?;
         self.env
             .get(Some(scope), key)
-            .ok_or_else(|| LoxError::Runtime(format!("Undefined varialbe \"{}\"", key)))
+            .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", key)))
     }
 }
