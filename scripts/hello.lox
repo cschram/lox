@@ -15,4 +15,4 @@ class HelloGreeter < Greeter {
 }
 
 var greeter = HelloGreeter();
-greeter.greet(get_arg(2));
+greeter.greet(args().get(2));

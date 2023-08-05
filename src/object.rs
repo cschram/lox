@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 #[derive(PartialEq, Clone)]
 pub struct LoxObject {
-    pub class: Rc<RefCell<LoxClass>>,
+    pub class_name: String,
     pub props: LoxProperties,
 }
 
@@ -15,7 +15,7 @@ impl LoxObject {
         arguments: &[Expr],
     ) -> LoxResult<LoxValue> {
         let obj = Rc::new(RefCell::new(Self {
-            class: class.clone(),
+            class_name: class.borrow().name.clone(),
             props: LoxProperties::new(),
         }));
         let this_value = LoxValue::from(obj.clone());
@@ -42,22 +42,24 @@ impl LoxObject {
                         .map(|value| LoxValue::from(value.clone()));
                     let method_value = LoxValue::from(method);
                     super_methods.insert(name.clone(), method_value.clone());
-                    obj.borrow_mut().props.insert(name.clone(), method_value.clone());
+                    obj.borrow_mut()
+                        .props
+                        .insert(name.clone(), method_value.clone());
                 }
                 super_value = Some(Rc::new(super_methods));
             }
         };
 
         let init = {
-            obj.borrow().props.get("init").and_then(|init| init.get_fun().ok()) };
+            obj.borrow()
+                .props
+                .get("init")
+                .and_then(|init| init.get_fun().ok())
+        };
         if let Some(init) = init {
             init.borrow().call(state, scope, arguments)?;
         }
         Ok(this_value)
-    }
-
-    pub fn has(&self, key: &str) -> bool {
-        self.props.contains_key(key)
     }
 
     pub fn get(&self, key: &str) -> Option<LoxValue> {

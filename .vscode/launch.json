@@ -21,10 +21,7 @@
             },
             "args": ["scripts/hello.lox", "world"],
             "cwd": "${workspaceFolder}",
-            "sourceLanguages": ["rust"],
-            "env": {
-                "PATH": "$PATH:$HOME/.cargo/bin"
-            }
+            "sourceLanguages": ["rust"]
         },
         {
             "type": "lldb",
@@ -47,10 +44,7 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}",
-            "sourceLanguages": ["rust"],
-            "env": {
-                "PATH": "$PATH:$HOME/.cargo/bin"
-            }
+            "sourceLanguages": ["rust"]
         }
     ]
 }

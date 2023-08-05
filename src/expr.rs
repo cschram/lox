@@ -258,8 +258,7 @@ impl Expr {
             } => {
                 let obj = object.eval(state, scope)?.get_object()?;
                 let val = value.eval(state, scope)?;
-                obj.borrow_mut()
-                    .set(identifier.lexeme_str(), val.clone());
+                obj.borrow_mut().set(identifier.lexeme_str(), val.clone());
                 Ok(val)
             }
             ExprKind::This => state.resolve_local(scope, self, "this"),
@@ -268,7 +267,12 @@ impl Expr {
                 super_value
                     .get(&method.lexeme_str())
                     .cloned()
-                    .ok_or_else(|| LoxError::Runtime(format!("Undefined super method \"{}\"", method.lexeme_str())))
+                    .ok_or_else(|| {
+                        LoxError::Runtime(format!(
+                            "Undefined super method \"{}\"",
+                            method.lexeme_str()
+                        ))
+                    })
             }
         }
     }
@@ -357,7 +361,7 @@ impl fmt::Display for Expr {
             }
             ExprKind::This => {
                 write!(f, "(this)")
-            },
+            }
             ExprKind::Super(method) => {
                 write!(f, "(super {})", method.lexeme_str())
             }

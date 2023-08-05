@@ -1,6 +1,13 @@
 use super::{environment::*, error::*, expr::Expr, scanner::*, state::LoxState, stmt::*, value::*};
 
-pub type NativeFunction = fn(Vec<LoxValue>) -> LoxResult<LoxValue>;
+pub type NativeFunction = fn(
+    // Interpreter state
+    &mut LoxState,
+    // "this" value
+    Option<LoxValue>,
+    // Arguments
+    &[LoxValue]
+) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
 pub enum FunctionBody {
@@ -90,7 +97,9 @@ impl LoxFunction {
                     };
                     // Bind super value
                     if let Some(super_value) = &self.super_value {
-                        state.env.declare(Some(*closure), "super".into(), super_value.clone());
+                        state
+                            .env
+                            .declare(Some(*closure), "super".into(), super_value.clone());
                     }
                     // Execute function body
                     state.stack.push(ret_value);
@@ -102,9 +111,16 @@ impl LoxFunction {
                     }
                     state.stack.pop().unwrap()
                 }
-                FunctionBody::Native(func) => func(args)?,
+                FunctionBody::Native(func) => func(state, self.this_value.clone(), &args)?,
             };
             Ok(return_value)
+        }
+    }
+
+    pub fn call_native(&self, state: &mut LoxState, args: &[LoxValue]) -> LoxResult<LoxValue> {
+        match &self.body {
+            FunctionBody::Native(func) => func(state, self.this_value.clone(), args),
+            FunctionBody::Block(..) => Err(LoxError::Runtime("Expected a native function".into()))
         }
     }
 }

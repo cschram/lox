@@ -1,6 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{environment::*, function::*, value::*};
+use crate::{error::LoxResult, object::*, value::LoxValue, environment::LoxProperties, state::LoxState};
+
+use super::function::*;
 
 #[derive(PartialEq, Clone)]
 pub struct LoxClass {
@@ -10,15 +12,27 @@ pub struct LoxClass {
 }
 
 impl LoxClass {
-    pub fn bind_methods(&self, props: &mut LoxProperties, this_value: LoxValue, super_value: Option<LoxValue>) {
-        for (name, fun) in self.methods.iter() {
-            let mut method = fun.clone();
-            if matches!(&method.name, Some(name) if name == "init") {
-                method.is_constructor = true;
-            }
+    /// Intended to be used from builtins. Does not look up super classes
+    pub fn instantiate(&self, state: &mut LoxState, args: &[LoxValue]) -> LoxResult<LoxValue> {
+        let obj = Rc::new(RefCell::new(LoxObject {
+            class_name: self.name.clone(),
+            props: LoxProperties::new(),
+        }));
+        let this_value = LoxValue::from(obj.clone());
+        for (name, func) in self.methods.iter() {
+            let mut method = func.clone();
             method.this_value = Some(this_value.clone());
-            method.super_value = super_value.clone();
-            props.insert(name.clone(), method.into());
+            obj.borrow_mut().props.insert(name.clone(), method.into());
         }
+        let init = {
+            obj.borrow()
+                .props
+                .get("init")
+                .and_then(|init| init.get_fun().ok())
+        };
+        if let Some(init) = init {
+            init.borrow().call_native(state, args)?;
+        }
+        Ok(obj.into())
     }
 }

@@ -13,7 +13,8 @@ pub enum LoxValue {
     Function(Rc<RefCell<LoxFunction>>),
     Class(Rc<RefCell<LoxClass>>),
     Object(Rc<RefCell<LoxObject>>),
-    Super(Rc<LoxProperties>)
+    Super(Rc<LoxProperties>),
+    Vec(Rc<RefCell<Vec<LoxValue>>>),
 }
 
 impl LoxValue {
@@ -27,6 +28,7 @@ impl LoxValue {
             Self::Class(_) => "Class".into(),
             Self::Object(_) => "Object".into(),
             Self::Super(_) => "Super".into(),
+            Self::Vec(_) => "Vec".into(),
         }
     }
 
@@ -103,7 +105,6 @@ impl LoxValue {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_fun(&self) -> LoxResult<Rc<RefCell<LoxFunction>>> {
         if let Self::Function(fun) = self {
             Ok(fun.clone())
@@ -115,7 +116,6 @@ impl LoxValue {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_class(&self) -> LoxResult<Rc<RefCell<LoxClass>>> {
         if let Self::Class(class) = self {
             Ok(class.clone())
@@ -144,6 +144,17 @@ impl LoxValue {
         } else {
             Err(LoxError::Runtime(format!(
                 "Expected Super, got \"{}\"",
+                self.type_str()
+            )))
+        }
+    }
+
+    pub fn get_vec(&self) -> LoxResult<Rc<RefCell<Vec<LoxValue>>>> {
+        if let Self::Vec(vec) = self {
+            Ok(vec.clone())
+        } else {
+            Err(LoxError::Runtime(format!(
+                "Expected Vec, got \"{}\"",
                 self.type_str()
             )))
         }
@@ -212,6 +223,18 @@ impl From<Rc<LoxProperties>> for LoxValue {
     }
 }
 
+impl From<Vec<LoxValue>> for LoxValue {
+    fn from(value: Vec<LoxValue>) -> Self {
+        Self::Vec(Rc::new(RefCell::new(value)))
+    }
+}
+
+impl From<Rc<RefCell<Vec<LoxValue>>>> for LoxValue {
+    fn from(value: Rc<RefCell<Vec<LoxValue>>>) -> Self {
+        Self::Vec(value)
+    }
+}
+
 impl From<Token> for LoxValue {
     fn from(token: Token) -> Self {
         match token.literal {
@@ -243,11 +266,10 @@ impl ToString for LoxValue {
                 format!("<class {}>", class.borrow().name)
             }
             Self::Object(obj) => {
-                format!("<instance {}>", obj.borrow().class.borrow().name)
+                format!("<instance {}>", obj.borrow().class_name)
             }
-            Self::Super(_) => {
-                "<super>".into()
-            }
+            Self::Super(_) => "<super>".into(),
+            Self::Vec(_) => "<vec>".into(),
         }
     }
 }
