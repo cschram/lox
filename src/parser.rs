@@ -268,7 +268,10 @@ impl Parser {
                 }
                 .into();
             } else {
-                return Err(LoxError::Runtime("Invalid assignment target".into(), left.line()));
+                return Err(LoxError::Runtime(
+                    "Invalid assignment target".into(),
+                    left.line(),
+                ));
             }
         }
         Ok(left)

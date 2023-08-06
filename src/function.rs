@@ -1,12 +1,17 @@
 use super::{environment::*, error::*, expr::Expr, scanner::*, state::LoxState, stmt::*, value::*};
 
+pub struct FunctionCallMetadata {
+    pub this_value: Option<LoxValue>,
+    pub line: u32,
+}
+
 pub type NativeFunction = fn(
     // Interpreter state
     &mut LoxState,
-    // "this" value
-    Option<LoxValue>,
     // Arguments
     &[LoxValue],
+    // Function call metadata
+    FunctionCallMetadata,
 ) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
@@ -40,7 +45,10 @@ impl LoxFunction {
                 line: stmt.line(),
             })
         } else {
-            Err(LoxError::Runtime("Expected a function statement".into(), stmt.line()))
+            Err(LoxError::Runtime(
+                "Expected a function statement".into(),
+                stmt.line(),
+            ))
         }
     }
 
@@ -64,13 +72,17 @@ impl LoxFunction {
         state: &mut LoxState,
         scope: ScopeHandle,
         arguments: &[Expr],
+        line: u32,
     ) -> LoxResult<LoxValue> {
         if arguments.len() != self.params.len() {
-            Err(LoxError::Runtime(format!(
-                "Function \"{}\" takes {} argument(s)",
-                self.name.clone().unwrap_or("".into()),
-                self.params.len(),
-            ), self.line))
+            Err(LoxError::Runtime(
+                format!(
+                    "Function \"{}\" takes {} argument(s)",
+                    self.name.clone().unwrap_or("".into()),
+                    self.params.len(),
+                ),
+                self.line,
+            ))
         } else {
             // Evaluate arguments to get their final value
             let mut args: Vec<LoxValue> = vec![];
@@ -114,16 +126,37 @@ impl LoxFunction {
                     }
                     state.stack.pop().unwrap()
                 }
-                FunctionBody::Native(func) => func(state, self.this_value.clone(), &args)?,
+                FunctionBody::Native(func) => func(
+                    state,
+                    &args,
+                    FunctionCallMetadata {
+                        this_value: self.this_value.clone(),
+                        line,
+                    },
+                )?,
             };
             Ok(return_value)
         }
     }
 
-    pub fn call_native(&self, state: &mut LoxState, args: &[LoxValue]) -> LoxResult<LoxValue> {
+    pub fn call_native(
+        &self,
+        state: &mut LoxState,
+        args: &[LoxValue],
+        line: u32,
+    ) -> LoxResult<LoxValue> {
         match &self.body {
-            FunctionBody::Native(func) => func(state, self.this_value.clone(), args),
-            FunctionBody::Block(..) => Err(LoxError::Runtime("Expected a native function".into(), 0)),
+            FunctionBody::Native(func) => func(
+                state,
+                args,
+                FunctionCallMetadata {
+                    this_value: self.this_value.clone(),
+                    line,
+                },
+            ),
+            FunctionBody::Block(..) => {
+                Err(LoxError::Runtime("Expected a native function".into(), 0))
+            }
         }
     }
 }

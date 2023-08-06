@@ -21,16 +21,22 @@ impl LoxState {
         }
     }
 
-    pub fn resolve_local(&self, scope: ScopeHandle, expr: &Expr, key: &str) -> LoxResult<LoxValue> {
+    pub fn resolve_local(
+        &self,
+        scope: ScopeHandle,
+        expr: &Expr,
+        key: &str,
+        line: u32,
+    ) -> LoxResult<LoxValue> {
         let scope = match self.locals.get(&expr.id()) {
             Some(depth) => self
                 .env
                 .ancestor_scope(scope, *depth)
-                .ok_or_else(|| LoxError::Runtime("Invalid scope".into())),
+                .ok_or_else(|| LoxError::Runtime("Invalid scope".into(), line)),
             None => Ok(GLOBAL_SCOPE),
         }?;
         self.env
             .get(Some(scope), key)
-            .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", key)))
+            .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", key), line))
     }
 }

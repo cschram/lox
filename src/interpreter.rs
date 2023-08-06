@@ -22,7 +22,7 @@ impl LoxInterpreter {
             for err in parse_errors.iter() {
                 error!("Parse Error: {}", err.to_string());
             }
-            return Err(LoxError::Runtime("Syntax errors encountered".into()));
+            return Err(LoxError::General("Syntax errors encountered".into()));
         }
         let mut locals: Locals = HashMap::new();
         for (key, value) in Resolver::bind(&statements)?.drain() {

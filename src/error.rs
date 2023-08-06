@@ -32,6 +32,8 @@ pub enum LoxError {
     Resolution(String, u32),
     #[error("Runtime Error: {0} on line {1}")]
     Runtime(String, u32),
+    #[error("{0}")]
+    General(String),
 }
 
 pub type LoxResult<T = ()> = Result<T, LoxError>;

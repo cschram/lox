@@ -15,7 +15,12 @@ pub struct LoxClass {
 
 impl LoxClass {
     /// Intended to be used from builtins. Does not look up super classes
-    pub fn instantiate(&self, state: &mut LoxState, args: &[LoxValue]) -> LoxResult<LoxValue> {
+    pub fn instantiate(
+        &self,
+        state: &mut LoxState,
+        args: &[LoxValue],
+        line: u32,
+    ) -> LoxResult<LoxValue> {
         let obj = Rc::new(RefCell::new(LoxObject {
             class_name: self.name.clone(),
             props: LoxProperties::new(),
@@ -30,10 +35,10 @@ impl LoxClass {
             obj.borrow()
                 .props
                 .get("init")
-                .and_then(|init| init.get_fun().ok())
+                .and_then(|init| init.get_fun(line).ok())
         };
         if let Some(init) = init {
-            init.borrow().call_native(state, args)?;
+            init.borrow().call_native(state, args, line)?;
         }
         Ok(obj.into())
     }

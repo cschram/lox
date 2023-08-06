@@ -48,19 +48,22 @@ impl Resolver {
             }
             Stmt::Var { name, initializer } => {
                 if self.has_name(&name.lexeme_str()) {
-                    return Err(LoxError::Runtime(format!(
-                        "Cannot redeclare variable \"{}\" in the same scope",
-                        name.lexeme_str()
-                    ), stmt.line()));
+                    return Err(LoxError::Runtime(
+                        format!(
+                            "Cannot redeclare variable \"{}\" in the same scope",
+                            name.lexeme_str()
+                        ),
+                        stmt.line(),
+                    ));
                 }
-                self.declare(name.lexeme_str());
+                self.declare(name.lexeme_str(), stmt.line());
                 if let Some(init) = initializer {
                     self.bind_expr(init)?;
                 }
-                self.define(name.lexeme_str());
+                self.define(name.lexeme_str(), stmt.line());
             }
             Stmt::Fun { name, params, body } => {
-                self.resolve_function(name, params, body, FunctionType::Function)?;
+                self.resolve_function(name, params, body, FunctionType::Function, stmt.line())?;
             }
             Stmt::Expr(expr) => {
                 self.bind_expr(expr)?;
@@ -81,7 +84,10 @@ impl Resolver {
             }
             Stmt::Return(expr) => {
                 if self.functions_stack.is_empty() {
-                    return Err(LoxError::Runtime("Cannot return from global scope".into(), stmt.line()));
+                    return Err(LoxError::Runtime(
+                        "Cannot return from global scope".into(),
+                        stmt.line(),
+                    ));
                 }
                 if self.functions_stack[self.functions_stack.len() - 1] == FunctionType::Constructor
                 {
@@ -104,14 +110,17 @@ impl Resolver {
                 methods,
             } => {
                 self.current_class = ClassType::Class;
-                self.declare(name.lexeme_str());
+                self.declare(name.lexeme_str(), stmt.line());
                 if let Some(superclass) = superclass {
                     if let ExprKind::Identifier(supername) = &superclass.kind {
                         if supername.lexeme_str() == name.lexeme_str() {
-                            return Err(LoxError::Resolution(format!(
-                                "Class \"{}\" cannot inherit from itself",
-                                name.lexeme_str()
-                            ), stmt.line()));
+                            return Err(LoxError::Resolution(
+                                format!(
+                                    "Class \"{}\" cannot inherit from itself",
+                                    name.lexeme_str()
+                                ),
+                                stmt.line(),
+                            ));
                         } else {
                             self.bind_expr(superclass)?;
                         }
@@ -130,10 +139,11 @@ impl Resolver {
                             } else {
                                 FunctionType::Method
                             },
+                            stmt.line(),
                         )?;
                     }
                 }
-                self.define(name.lexeme_str());
+                self.define(name.lexeme_str(), stmt.line());
                 self.current_class = ClassType::None;
             }
         }
@@ -207,6 +217,7 @@ impl Resolver {
     fn resolve_local(&mut self, expr: &Expr, name: String) {
         for (i, frame) in self.locals_stack.iter().rev().enumerate() {
             if frame.contains_key(&name) {
+                println!("resolve {name} = {i}");
                 self.resolve(expr, i);
                 break;
             }
@@ -219,15 +230,16 @@ impl Resolver {
         params: &[Token],
         body: &[Stmt],
         func_type: FunctionType,
+        line: u32,
     ) -> LoxResult {
-        self.define(name.lexeme_str());
+        self.define(name.lexeme_str(), line);
         self.functions_stack.push(func_type);
         self.push();
         if func_type == FunctionType::Method {
-            self.define("this".into());
+            self.define("this".into(), line);
         }
         for param in params.iter() {
-            self.define(param.lexeme_str());
+            self.define(param.lexeme_str(), line);
         }
         for stmt in body.iter() {
             self.bind_stmt(stmt)?;
@@ -246,16 +258,19 @@ impl Resolver {
     }
 
     fn pop(&mut self) {
+        println!("pop");
         self.locals_stack.pop();
     }
 
-    fn declare(&mut self, name: String) {
+    fn declare(&mut self, name: String, line: u32) {
+        println!("declare {name} on line {line}");
         if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, false);
         }
     }
 
-    fn define(&mut self, name: String) {
+    fn define(&mut self, name: String, line: u32) {
+        println!("define {name} on line {line}");
         if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, true);
         }

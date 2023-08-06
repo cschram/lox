@@ -71,92 +71,92 @@ impl LoxValue {
     }
 
     #[allow(dead_code)]
-    pub fn get_boolean(&self) -> LoxResult<bool> {
+    pub fn get_boolean(&self, line: u32) -> LoxResult<bool> {
         if let Self::Boolean(value) = self {
             Ok(*value)
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Boolean, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Boolean, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_number(&self) -> LoxResult<f64> {
+    pub fn get_number(&self, line: u32) -> LoxResult<f64> {
         if let Self::Number(value) = self {
             Ok(*value)
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Number, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Number, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
     #[allow(dead_code)]
-    pub fn get_string(&self) -> LoxResult<String> {
+    pub fn get_string(&self, line: u32) -> LoxResult<String> {
         if let Self::String(value) = self {
             Ok(value.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected String, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected String, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_fun(&self) -> LoxResult<Rc<RefCell<LoxFunction>>> {
+    pub fn get_fun(&self, line: u32) -> LoxResult<Rc<RefCell<LoxFunction>>> {
         if let Self::Function(fun) = self {
             Ok(fun.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Function, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Function, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_class(&self) -> LoxResult<Rc<RefCell<LoxClass>>> {
+    pub fn get_class(&self, line: u32) -> LoxResult<Rc<RefCell<LoxClass>>> {
         if let Self::Class(class) = self {
             Ok(class.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Class, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Class, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_object(&self) -> LoxResult<Rc<RefCell<LoxObject>>> {
+    pub fn get_object(&self, line: u32) -> LoxResult<Rc<RefCell<LoxObject>>> {
         if let Self::Object(obj) = self {
             Ok(obj.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Object, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Object, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_super(&self) -> LoxResult<Rc<LoxProperties>> {
+    pub fn get_super(&self, line: u32) -> LoxResult<Rc<LoxProperties>> {
         if let Self::Super(methods) = self {
             Ok(methods.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Super, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Super, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 
-    pub fn get_vec(&self) -> LoxResult<Rc<RefCell<Vec<LoxValue>>>> {
+    pub fn get_vec(&self, line: u32) -> LoxResult<Rc<RefCell<Vec<LoxValue>>>> {
         if let Self::Vec(vec) = self {
             Ok(vec.clone())
         } else {
-            Err(LoxError::Runtime(format!(
-                "Expected Vec, got \"{}\"",
-                self.type_str()
-            )))
+            Err(LoxError::Runtime(
+                format!("Expected Vec, got \"{}\"", self.type_str()),
+                line,
+            ))
         }
     }
 

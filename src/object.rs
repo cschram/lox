@@ -13,6 +13,7 @@ impl LoxObject {
         state: &mut LoxState,
         scope: ScopeHandle,
         arguments: &[Expr],
+        line: u32,
     ) -> LoxResult<LoxValue> {
         let obj = Rc::new(RefCell::new(Self {
             class_name: class.borrow().name.clone(),
@@ -54,10 +55,10 @@ impl LoxObject {
             obj.borrow()
                 .props
                 .get("init")
-                .and_then(|init| init.get_fun().ok())
+                .and_then(|init| init.get_fun(line).ok())
         };
         if let Some(init) = init {
-            init.borrow().call(state, scope, arguments)?;
+            init.borrow().call(state, scope, arguments, line)?;
         }
         Ok(this_value)
     }

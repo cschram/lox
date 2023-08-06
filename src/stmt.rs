@@ -58,6 +58,7 @@ impl Stmt {
     }
 
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult {
+        println!("{self}");
         match self {
             Stmt::Expr(expr) => {
                 expr.eval(state, scope)?;
@@ -122,8 +123,8 @@ impl Stmt {
                     if let ExprKind::Identifier(name) = &expr.kind {
                         superclass_ref = Some(
                             state
-                                .resolve_local(scope, expr, &name.lexeme_str())?
-                                .get_class()?
+                                .resolve_local(scope, expr, &name.lexeme_str(), self.line())?
+                                .get_class(self.line())?
                                 .clone(),
                         );
                     } else {

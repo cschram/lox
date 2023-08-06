@@ -97,6 +97,7 @@ impl Expr {
     }
 
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult<LoxValue> {
+        println!("{self}");
         match &self.kind {
             ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
             ExprKind::Unary { operator, right } => match operator.kind {
@@ -105,10 +106,10 @@ impl Expr {
                     let right_value = right.eval(state, scope)?.is_truthy();
                     Ok(LoxValue::Boolean(!right_value))
                 }
-                _ => Err(LoxError::Runtime(format!(
-                    "Unknown unary operator \"{}\"",
-                    operator
-                ), self.line())),
+                _ => Err(LoxError::Runtime(
+                    format!("Unknown unary operator \"{}\"", operator),
+                    self.line(),
+                )),
             },
             ExprKind::Binary {
                 operator,
@@ -127,87 +128,112 @@ impl Expr {
                             )))
                         } else if left_value.is_number() && right_value.is_number() {
                             Ok(LoxValue::Number(
-                                left_value.get_number()? + right_value.get_number()?,
+                                left_value.get_number(self.line())?
+                                    + right_value.get_number(self.line())?,
                             ))
                         } else {
-                            Err(LoxError::Runtime(format!(
-                                "Invalid operands {} + {}",
-                                left_value.to_string(),
-                                right_value.to_string(),
-                            ), self.line()))
+                            Err(LoxError::Runtime(
+                                format!(
+                                    "Invalid operands {} + {}",
+                                    left_value.to_string(),
+                                    right_value.to_string(),
+                                ),
+                                self.line(),
+                            ))
                         }
                     }
                     TokenKind::Minus => Ok(LoxValue::Number(
-                        left_value.get_number()? - right_value.get_number()?,
+                        left_value.get_number(self.line())?
+                            - right_value.get_number(self.line())?,
                     )),
                     TokenKind::Star => Ok(LoxValue::Number(
-                        left_value.get_number()? * right_value.get_number()?,
+                        left_value.get_number(self.line())?
+                            * right_value.get_number(self.line())?,
                     )),
                     TokenKind::Slash => Ok(LoxValue::Number(
-                        left_value.get_number()? / right_value.get_number()?,
+                        left_value.get_number(self.line())?
+                            / right_value.get_number(self.line())?,
                     )),
                     TokenKind::Greater => {
                         if left_value.is_number() && right_value.is_number() {
                             Ok(LoxValue::Boolean(
-                                left_value.get_number()? > right_value.get_number()?,
+                                left_value.get_number(self.line())?
+                                    > right_value.get_number(self.line())?,
                             ))
                         } else {
-                            Err(LoxError::Runtime(format!(
-                                "Invalid operands {} > {}",
-                                left_value.to_string(),
-                                right_value.to_string(),
-                            ), self.line()))
+                            Err(LoxError::Runtime(
+                                format!(
+                                    "Invalid operands {} > {}",
+                                    left_value.to_string(),
+                                    right_value.to_string(),
+                                ),
+                                self.line(),
+                            ))
                         }
                     }
                     TokenKind::GreaterEqual => {
                         if left_value.is_number() && right_value.is_number() {
                             Ok(LoxValue::Boolean(
-                                left_value.get_number()? >= right_value.get_number()?,
+                                left_value.get_number(self.line())?
+                                    >= right_value.get_number(self.line())?,
                             ))
                         } else {
-                            Err(LoxError::Runtime(format!(
-                                "Invalid operands {} >= {}",
-                                left_value.to_string(),
-                                right_value.to_string(),
-                            ), self.line()))
+                            Err(LoxError::Runtime(
+                                format!(
+                                    "Invalid operands {} >= {}",
+                                    left_value.to_string(),
+                                    right_value.to_string(),
+                                ),
+                                self.line(),
+                            ))
                         }
                     }
                     TokenKind::Less => {
                         if left_value.is_number() && right_value.is_number() {
                             Ok(LoxValue::Boolean(
-                                left_value.get_number()? < right_value.get_number()?,
+                                left_value.get_number(self.line())?
+                                    < right_value.get_number(self.line())?,
                             ))
                         } else {
-                            Err(LoxError::Runtime(format!(
-                                "Invalid operands {} < {}",
-                                left_value.to_string(),
-                                right_value.to_string(),
-                            ), self.line()))
+                            Err(LoxError::Runtime(
+                                format!(
+                                    "Invalid operands {} < {}",
+                                    left_value.to_string(),
+                                    right_value.to_string(),
+                                ),
+                                self.line(),
+                            ))
                         }
                     }
                     TokenKind::LessEqual => {
                         if left_value.is_number() && right_value.is_number() {
                             Ok(LoxValue::Boolean(
-                                left_value.get_number()? <= right_value.get_number()?,
+                                left_value.get_number(self.line())?
+                                    <= right_value.get_number(self.line())?,
                             ))
                         } else {
-                            Err(LoxError::Runtime(format!(
-                                "Invalid operands {} <= {}",
-                                left_value.to_string(),
-                                right_value.to_string(),
-                            ), self.line()))
+                            Err(LoxError::Runtime(
+                                format!(
+                                    "Invalid operands {} <= {}",
+                                    left_value.to_string(),
+                                    right_value.to_string(),
+                                ),
+                                self.line(),
+                            ))
                         }
                     }
                     TokenKind::EqualEqual => Ok(LoxValue::Boolean(left_value == right_value)),
                     TokenKind::BangEqual => Ok(LoxValue::Boolean(left_value != right_value)),
-                    _ => Err(LoxError::Runtime(format!(
-                        "Unknown binary operator \"{}\"",
-                        operator
-                    ), self.line())),
+                    _ => Err(LoxError::Runtime(
+                        format!("Unknown binary operator \"{}\"", operator),
+                        self.line(),
+                    )),
                 }
             }
             ExprKind::Grouping(inner) => inner.eval(state, scope),
-            ExprKind::Identifier(name) => state.resolve_local(scope, self, &name.lexeme_str()),
+            ExprKind::Identifier(name) => {
+                state.resolve_local(scope, self, &name.lexeme_str(), self.line())
+            }
             ExprKind::Assignment { name, value } => {
                 let val = value.eval(state, scope)?;
                 let scope =
@@ -244,27 +270,42 @@ impl Expr {
                     }
                     Ok(val)
                 }
-                _ => Err(LoxError::Runtime(format!(
-                    "Expected logical operator, got \"{}\"",
-                    operator.lexeme_str()
-                ), self.line())),
+                _ => Err(LoxError::Runtime(
+                    format!(
+                        "Expected logical operator, got \"{}\"",
+                        operator.lexeme_str()
+                    ),
+                    self.line(),
+                )),
             },
             ExprKind::Call { callee, arguments } => match callee.eval(state, scope)? {
-                LoxValue::Function(func) => func.borrow().call(state, scope, arguments),
-                LoxValue::Class(class) => {
-                    Ok(LoxObject::instantiate(class, state, scope, arguments)?)
+                LoxValue::Function(func) => {
+                    func.borrow().call(state, scope, arguments, self.line())
                 }
-                _ => Err(LoxError::Runtime("Cannot call a non-function".into(), self.line())),
+                LoxValue::Class(class) => Ok(LoxObject::instantiate(
+                    class,
+                    state,
+                    scope,
+                    arguments,
+                    self.line(),
+                )?),
+                _ => Err(LoxError::Runtime(
+                    "Cannot call a non-function".into(),
+                    self.line(),
+                )),
             },
             ExprKind::Get { left, right } => {
                 let identifier = right.lexeme_str();
                 let value = left
                     .eval(state, scope)?
-                    .get_object()?
+                    .get_object(self.line())?
                     .borrow()
                     .get(&identifier)
                     .ok_or_else(|| {
-                        LoxError::Runtime(format!("Undefined variable \"{}\"", identifier), self.line())
+                        LoxError::Runtime(
+                            format!("Undefined variable \"{}\"", identifier),
+                            self.line(),
+                        )
                     })?;
                 Ok(value)
             }
@@ -273,22 +314,24 @@ impl Expr {
                 identifier,
                 value,
             } => {
-                let obj = object.eval(state, scope)?.get_object()?;
+                let obj = object.eval(state, scope)?.get_object(self.line())?;
                 let val = value.eval(state, scope)?;
                 obj.borrow_mut().set(identifier.lexeme_str(), val.clone());
                 Ok(val)
             }
-            ExprKind::This(_) => state.resolve_local(scope, self, "this"),
+            ExprKind::This(_) => state.resolve_local(scope, self, "this", self.line()),
             ExprKind::Super(method) => {
-                let super_value = state.resolve_local(scope, self, "super")?.get_super()?;
+                let super_value = state
+                    .resolve_local(scope, self, "super", self.line())?
+                    .get_super(self.line())?;
                 super_value
                     .get(&method.lexeme_str())
                     .cloned()
                     .ok_or_else(|| {
-                        LoxError::Runtime(format!(
-                            "Undefined super method \"{}\"",
-                            method.lexeme_str()
-                        ), self.line())
+                        LoxError::Runtime(
+                            format!("Undefined super method \"{}\"", method.lexeme_str()),
+                            self.line(),
+                        )
                     })
             }
         }
