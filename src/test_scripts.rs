@@ -117,7 +117,6 @@ pub const CLASS_TEST: &str = r#"
     greeter.greet("world");
 "#;
 
-#[allow(dead_code)]
 pub const CLASS_INHERITANCE_TEST: &str = r#"
     class Greeter {
         init(greeting) {
@@ -146,4 +145,15 @@ pub const CLASS_INHERITANCE_TEST: &str = r#"
     
     var howdy = HowdyGreeter();
     howdy.greet("partner");
+"#;
+
+pub const METHOD_CHAINING_TEST: &str = r#"
+    fun get_arr() {
+        var arr = Array();
+        arr.push(1);
+        arr.push(2);
+        return arr;
+    }
+
+    print get_arr().get(0);
 "#;

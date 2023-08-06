@@ -597,4 +597,12 @@ mod test {
         assert_eq!(errors.len(), 0);
         assert_eq!(statements.len(), 7);
     }
+
+    #[test]
+    fn method_chaining() {
+        let ParseResult { statements, errors } = parse(METHOD_CHAINING_TEST);
+        println!("{:?}", errors);
+        assert_eq!(errors.len(), 0);
+        assert_eq!(statements.len(), 4);
+    }
 }

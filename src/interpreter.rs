@@ -199,4 +199,16 @@ mod test {
         });
         Ok(())
     }
+
+    #[test]
+    fn method_chaining() -> LoxResult {
+        mock_logger::init();
+        let mut lox = LoxInterpreter::new();
+        lox.exec(METHOD_CHAINING_TEST)?;
+        MockLogger::entries(|entries| {
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].body, "foo");
+        });
+        Ok(())
+    }
 }
