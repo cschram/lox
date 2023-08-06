@@ -268,7 +268,7 @@ impl Parser {
                 }
                 .into();
             } else {
-                return Err(LoxError::Runtime("Invalid assignment target".into()));
+                return Err(LoxError::Runtime("Invalid assignment target".into(), left.line()));
             }
         }
         Ok(left)
@@ -394,6 +394,7 @@ impl Parser {
                         if arguments.len() > MAX_ARGUMENTS {
                             return Err(LoxError::Runtime(
                                 "Exceeded maximum number of arguments".into(),
+                                self.previous().line,
                             ));
                         }
                         if !self.match_tokens(&[TokenKind::Comma]) {
@@ -407,7 +408,6 @@ impl Parser {
                     arguments,
                 }
                 .into();
-                break;
             } else if self.match_tokens(&[TokenKind::Dot]) {
                 let identifier =
                     self.consume(TokenKind::Identifier, "Expected identifier after \".\"")?;
@@ -433,7 +433,7 @@ impl Parser {
         ]) {
             Ok(ExprKind::Literal(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::This]) {
-            Ok(ExprKind::This.into())
+            Ok(ExprKind::This(self.previous().clone()).into())
         } else if self.match_tokens(&[TokenKind::Super]) {
             self.consume(TokenKind::Dot, "Expected \".\" after super")?;
             Ok(ExprKind::Super(
@@ -601,8 +601,7 @@ mod test {
     #[test]
     fn method_chaining() {
         let ParseResult { statements, errors } = parse(METHOD_CHAINING_TEST);
-        println!("{:?}", errors);
         assert_eq!(errors.len(), 0);
-        assert_eq!(statements.len(), 4);
+        assert_eq!(statements.len(), 2);
     }
 }

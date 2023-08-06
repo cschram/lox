@@ -57,7 +57,7 @@ pub enum ExprKind {
         identifier: Token,
         value: Box<Expr>,
     },
-    This,
+    This(Token),
     Super(Token),
 }
 
@@ -79,6 +79,23 @@ impl Expr {
         self._id
     }
 
+    pub fn line(&self) -> u32 {
+        match &self.kind {
+            ExprKind::Literal(token) => token.line,
+            ExprKind::Unary { operator, .. } => operator.line,
+            ExprKind::Binary { operator, .. } => operator.line,
+            ExprKind::Grouping(expr) => expr.line(),
+            ExprKind::Identifier(token) => token.line,
+            ExprKind::Assignment { name, .. } => name.line,
+            ExprKind::Logical { operator, .. } => operator.line,
+            ExprKind::Call { callee, .. } => callee.line(),
+            ExprKind::Get { left, .. } => left.line(),
+            ExprKind::Set { object, .. } => object.line(),
+            ExprKind::This(token) => token.line,
+            ExprKind::Super(token) => token.line,
+        }
+    }
+
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult<LoxValue> {
         match &self.kind {
             ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
@@ -91,7 +108,7 @@ impl Expr {
                 _ => Err(LoxError::Runtime(format!(
                     "Unknown unary operator \"{}\"",
                     operator
-                ))),
+                ), self.line())),
             },
             ExprKind::Binary {
                 operator,
@@ -117,7 +134,7 @@ impl Expr {
                                 "Invalid operands {} + {}",
                                 left_value.to_string(),
                                 right_value.to_string(),
-                            )))
+                            ), self.line()))
                         }
                     }
                     TokenKind::Minus => Ok(LoxValue::Number(
@@ -139,7 +156,7 @@ impl Expr {
                                 "Invalid operands {} > {}",
                                 left_value.to_string(),
                                 right_value.to_string(),
-                            )))
+                            ), self.line()))
                         }
                     }
                     TokenKind::GreaterEqual => {
@@ -152,7 +169,7 @@ impl Expr {
                                 "Invalid operands {} >= {}",
                                 left_value.to_string(),
                                 right_value.to_string(),
-                            )))
+                            ), self.line()))
                         }
                     }
                     TokenKind::Less => {
@@ -165,7 +182,7 @@ impl Expr {
                                 "Invalid operands {} < {}",
                                 left_value.to_string(),
                                 right_value.to_string(),
-                            )))
+                            ), self.line()))
                         }
                     }
                     TokenKind::LessEqual => {
@@ -178,7 +195,7 @@ impl Expr {
                                 "Invalid operands {} <= {}",
                                 left_value.to_string(),
                                 right_value.to_string(),
-                            )))
+                            ), self.line()))
                         }
                     }
                     TokenKind::EqualEqual => Ok(LoxValue::Boolean(left_value == right_value)),
@@ -186,7 +203,7 @@ impl Expr {
                     _ => Err(LoxError::Runtime(format!(
                         "Unknown binary operator \"{}\"",
                         operator
-                    ))),
+                    ), self.line())),
                 }
             }
             ExprKind::Grouping(inner) => inner.eval(state, scope),
@@ -230,14 +247,14 @@ impl Expr {
                 _ => Err(LoxError::Runtime(format!(
                     "Expected logical operator, got \"{}\"",
                     operator.lexeme_str()
-                ))),
+                ), self.line())),
             },
             ExprKind::Call { callee, arguments } => match callee.eval(state, scope)? {
                 LoxValue::Function(func) => func.borrow().call(state, scope, arguments),
                 LoxValue::Class(class) => {
                     Ok(LoxObject::instantiate(class, state, scope, arguments)?)
                 }
-                _ => Err(LoxError::Runtime("Cannot call a non-function".into())),
+                _ => Err(LoxError::Runtime("Cannot call a non-function".into(), self.line())),
             },
             ExprKind::Get { left, right } => {
                 let identifier = right.lexeme_str();
@@ -247,7 +264,7 @@ impl Expr {
                     .borrow()
                     .get(&identifier)
                     .ok_or_else(|| {
-                        LoxError::Runtime(format!("Undefined variable \"{}\"", identifier))
+                        LoxError::Runtime(format!("Undefined variable \"{}\"", identifier), self.line())
                     })?;
                 Ok(value)
             }
@@ -261,7 +278,7 @@ impl Expr {
                 obj.borrow_mut().set(identifier.lexeme_str(), val.clone());
                 Ok(val)
             }
-            ExprKind::This => state.resolve_local(scope, self, "this"),
+            ExprKind::This(_) => state.resolve_local(scope, self, "this"),
             ExprKind::Super(method) => {
                 let super_value = state.resolve_local(scope, self, "super")?.get_super()?;
                 super_value
@@ -271,7 +288,7 @@ impl Expr {
                         LoxError::Runtime(format!(
                             "Undefined super method \"{}\"",
                             method.lexeme_str()
-                        ))
+                        ), self.line())
                     })
             }
         }
@@ -359,7 +376,7 @@ impl fmt::Display for Expr {
                     value
                 )
             }
-            ExprKind::This => {
+            ExprKind::This(_) => {
                 write!(f, "(this)")
             }
             ExprKind::Super(method) => {

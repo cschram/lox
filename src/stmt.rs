@@ -43,6 +43,20 @@ pub enum Stmt {
 }
 
 impl Stmt {
+    pub fn line(&self) -> u32 {
+        match self {
+            Self::Expr(expr) => expr.line(),
+            Self::Print(expr) => expr.line(),
+            Self::Var { name, .. } => name.line,
+            Self::Block(stmts) => stmts[0].line(),
+            Self::IfElse { condition, .. } => condition.line(),
+            Self::WhileLoop { condition, .. } => condition.line(),
+            Self::Fun { name, .. } => name.line,
+            Self::Return(expr) => expr.line(),
+            Self::Class { name, .. } => name.line,
+        }
+    }
+
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult {
         match self {
             Stmt::Expr(expr) => {

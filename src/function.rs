@@ -6,7 +6,7 @@ pub type NativeFunction = fn(
     // "this" value
     Option<LoxValue>,
     // Arguments
-    &[LoxValue]
+    &[LoxValue],
 ) -> LoxResult<LoxValue>;
 
 #[derive(PartialEq, Clone)]
@@ -23,6 +23,7 @@ pub struct LoxFunction {
     pub this_value: Option<LoxValue>,
     pub super_value: Option<LoxValue>,
     pub is_constructor: bool,
+    pub line: u32,
 }
 
 impl LoxFunction {
@@ -36,9 +37,10 @@ impl LoxFunction {
                 this_value: None,
                 super_value: None,
                 is_constructor: false,
+                line: stmt.line(),
             })
         } else {
-            Err(LoxError::Runtime("Expected a function statement".into()))
+            Err(LoxError::Runtime("Expected a function statement".into(), stmt.line()))
         }
     }
 
@@ -53,6 +55,7 @@ impl LoxFunction {
             this_value: None,
             super_value: None,
             is_constructor: false,
+            line: 0,
         }
     }
 
@@ -67,7 +70,7 @@ impl LoxFunction {
                 "Function \"{}\" takes {} argument(s)",
                 self.name.clone().unwrap_or("".into()),
                 self.params.len(),
-            )))
+            ), self.line))
         } else {
             // Evaluate arguments to get their final value
             let mut args: Vec<LoxValue> = vec![];
@@ -120,7 +123,7 @@ impl LoxFunction {
     pub fn call_native(&self, state: &mut LoxState, args: &[LoxValue]) -> LoxResult<LoxValue> {
         match &self.body {
             FunctionBody::Native(func) => func(state, self.this_value.clone(), args),
-            FunctionBody::Block(..) => Err(LoxError::Runtime("Expected a native function".into()))
+            FunctionBody::Block(..) => Err(LoxError::Runtime("Expected a native function".into(), 0)),
         }
     }
 }

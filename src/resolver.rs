@@ -51,7 +51,7 @@ impl Resolver {
                     return Err(LoxError::Runtime(format!(
                         "Cannot redeclare variable \"{}\" in the same scope",
                         name.lexeme_str()
-                    )));
+                    ), stmt.line()));
                 }
                 self.declare(name.lexeme_str());
                 if let Some(init) = initializer {
@@ -81,12 +81,13 @@ impl Resolver {
             }
             Stmt::Return(expr) => {
                 if self.functions_stack.is_empty() {
-                    return Err(LoxError::Runtime("Cannot return from global scope".into()));
+                    return Err(LoxError::Runtime("Cannot return from global scope".into(), stmt.line()));
                 }
                 if self.functions_stack[self.functions_stack.len() - 1] == FunctionType::Constructor
                 {
                     return Err(LoxError::Resolution(
                         "Cannot return from constructor".into(),
+                        stmt.line(),
                     ));
                 }
                 self.bind_expr(expr)?;
@@ -110,7 +111,7 @@ impl Resolver {
                             return Err(LoxError::Resolution(format!(
                                 "Class \"{}\" cannot inherit from itself",
                                 name.lexeme_str()
-                            )));
+                            ), stmt.line()));
                         } else {
                             self.bind_expr(superclass)?;
                         }
@@ -145,6 +146,7 @@ impl Resolver {
                 if !self.locals_stack.is_empty() && !self.is_initialized(&name.lexeme_str()) {
                     return Err(LoxError::Resolution(
                         "Attempted to resolve variable in its own initializer".into(),
+                        expr.line(),
                     ));
                 }
                 self.resolve_local(expr, name.lexeme_str());
@@ -181,10 +183,11 @@ impl Resolver {
             ExprKind::Unary { operator: _, right } => {
                 self.bind_expr(right)?;
             }
-            ExprKind::This => {
+            ExprKind::This(_) => {
                 if self.current_class == ClassType::None {
                     return Err(LoxError::Resolution(
                         "Cannot use \"this\" outside of a class".into(),
+                        expr.line(),
                     ));
                 }
             }
@@ -192,6 +195,7 @@ impl Resolver {
                 if self.current_class == ClassType::None {
                     return Err(LoxError::Resolution(
                         "Cannot use \"super\" outside of a class".into(),
+                        expr.line(),
                     ));
                 }
             }
@@ -394,7 +398,7 @@ mod test {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(LoxError::Resolution(message)) if message == "Cannot use \"this\" outside of a class".to_string()
+            Err(LoxError::Resolution(message, _)) if message == "Cannot use \"this\" outside of a class".to_string()
         ));
     }
 
@@ -416,7 +420,7 @@ mod test {
         assert!(result.is_err());
         assert!(matches!(
             result,
-            Err(LoxError::Resolution(message)) if message == "Cannot return from constructor".to_string()
+            Err(LoxError::Resolution(message, _)) if message == "Cannot return from constructor".to_string()
         ));
     }
 }

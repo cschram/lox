@@ -1,6 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::{error::LoxResult, object::*, value::LoxValue, environment::LoxProperties, state::LoxState};
+use crate::{
+    environment::LoxProperties, error::LoxResult, object::*, state::LoxState, value::LoxValue,
+};
 
 use super::function::*;
 

@@ -14,58 +14,80 @@ pub fn get_builtins() -> LoxProperties {
         methods: {
             let init = LoxFunction::native("init", vec![], |_, this_value, _| {
                 let this = this_value.expect("Expected a this value").get_object()?;
-                this.borrow_mut().set("__vec__".into(), Vec::<LoxValue>::new().into());
+                this.borrow_mut()
+                    .set("__vec__".into(), Vec::<LoxValue>::new().into());
                 Ok(LoxValue::Nil)
             });
 
             let method_len = LoxFunction::native("len", vec![], |_, this_value, _| {
                 let this = this_value.expect("Expected a this value").get_object()?;
-                let __vec__ = this.borrow().get("__vec__").expect("Missing __vec__").get_vec()?;
+                let __vec__ = this
+                    .borrow()
+                    .get("__vec__")
+                    .expect("Missing __vec__")
+                    .get_vec()?;
                 let len = __vec__.borrow().len() as f64;
                 Ok(len.into())
             });
 
             let method_get = LoxFunction::native("get", vec!["index"], |_, this_value, args| {
                 if args.is_empty() {
-                    return Err(LoxError::Runtime("Expected 1 argument".into()));
+                    return Err(LoxError::Runtime("Expected 1 argument".into(), 0));
                 }
                 let index = args[0].get_number()? as usize;
                 let this = this_value.expect("Expected a this value").get_object()?;
-                let __vec__ = this.borrow().get("__vec__").expect("Missing __vec__").get_vec()?;
+                let __vec__ = this
+                    .borrow()
+                    .get("__vec__")
+                    .expect("Missing __vec__")
+                    .get_vec()?;
                 if index > __vec__.borrow().len() {
-                    return Err(LoxError::Runtime(format!("Index {index} out of range")));
+                    return Err(LoxError::Runtime(format!("Index {index} out of range"), 0));
                 }
                 let elem = &__vec__.borrow()[index];
                 Ok(elem.clone())
             });
 
-            let method_set = LoxFunction::native("set", vec!["index", "value"], |_, this_value, args| {
-                if args.len() < 2 {
-                    return Err(LoxError::Runtime("Expected 2 arguments".into()));
-                }
-                let index = args[0].get_number()? as usize;
-                let this = this_value.expect("Expected a this value").get_object()?;
-                let __vec__ = this.borrow().get("__vec__").expect("Missing __vec__").get_vec()?;
-                if index > __vec__.borrow().len() {
-                    return Err(LoxError::Runtime(format!("Index {index} out of range")));
-                }
-                __vec__.borrow_mut()[index] = args[1].clone();
-                Ok(LoxValue::Nil)
-            });
+            let method_set =
+                LoxFunction::native("set", vec!["index", "value"], |_, this_value, args| {
+                    if args.len() < 2 {
+                        return Err(LoxError::Runtime("Expected 2 arguments".into(), 0));
+                    }
+                    let index = args[0].get_number()? as usize;
+                    let this = this_value.expect("Expected a this value").get_object()?;
+                    let __vec__ = this
+                        .borrow()
+                        .get("__vec__")
+                        .expect("Missing __vec__")
+                        .get_vec()?;
+                    if index > __vec__.borrow().len() {
+                        return Err(LoxError::Runtime(format!("Index {index} out of range"), 0));
+                    }
+                    __vec__.borrow_mut()[index] = args[1].clone();
+                    Ok(LoxValue::Nil)
+                });
 
             let method_push = LoxFunction::native("get", vec!["value"], |_, this_value, args| {
                 if args.is_empty() {
-                    return Err(LoxError::Runtime("Expected 1 argument".into()));
+                    return Err(LoxError::Runtime("Expected 1 argument".into(), 0));
                 }
                 let this = this_value.expect("Expected a this value").get_object()?;
-                let __vec__ = this.borrow().get("__vec__").expect("Missing __vec__").get_vec()?;
+                let __vec__ = this
+                    .borrow()
+                    .get("__vec__")
+                    .expect("Missing __vec__")
+                    .get_vec()?;
                 __vec__.borrow_mut().push(args[0].clone());
                 Ok(LoxValue::Nil)
             });
 
             let method_pop = LoxFunction::native("get", vec![], |_, this_value, _| {
                 let this = this_value.expect("Expected a this value").get_object()?;
-                let __vec__ = this.borrow().get("__vec__").expect("Missing __vec__").get_vec()?;
+                let __vec__ = this
+                    .borrow()
+                    .get("__vec__")
+                    .expect("Missing __vec__")
+                    .get_vec()?;
                 let value = __vec__.borrow_mut().pop();
                 Ok(value.unwrap_or(LoxValue::Nil))
             });
@@ -78,9 +100,9 @@ pub fn get_builtins() -> LoxProperties {
             methods.insert("push".into(), method_push);
             methods.insert("pop".into(), method_pop);
             methods
-        }
+        },
     };
-    
+
     constants.insert("Array".into(), class_array.into());
 
     let func_time = LoxFunction::native("time", vec![], |_, _, _| {
@@ -92,10 +114,17 @@ pub fn get_builtins() -> LoxProperties {
     constants.insert("time".into(), func_time.into());
 
     let func_get_args = LoxFunction::native("get_args", vec![], |state, _, _| {
-        let args: Vec<LoxValue> = env::args().map(|arg| LoxValue::from(arg)).collect();
-        let class_vec = state.env.get(None, "Array").expect("Expected Array to exist").get_class()?;
+        let args: Vec<LoxValue> = env::args().map(LoxValue::from).collect();
+        let class_vec = state
+            .env
+            .get(None, "Array")
+            .expect("Expected Array to exist")
+            .get_class()?;
         let lox_vec = class_vec.borrow().instantiate(state, &[])?;
-        lox_vec.get_object()?.borrow_mut().set("__vec__".into(), args.into());
+        lox_vec
+            .get_object()?
+            .borrow_mut()
+            .set("__vec__".into(), args.into());
         Ok(lox_vec)
     });
 
@@ -106,17 +135,15 @@ pub fn get_builtins() -> LoxProperties {
 
 #[cfg(test)]
 mod test {
+    use crate::{error::*, interpreter::*};
     use mock_logger::MockLogger;
-    use crate::{
-        error::*,
-        interpreter::*,
-    };
 
-   #[test]
+    #[test]
     fn array() -> LoxResult {
         mock_logger::init();
         let mut lox = LoxInterpreter::new();
-        lox.exec(r#"
+        lox.exec(
+            r#"
             var arr = Array();
             arr.push(1);
             arr.push(2);
@@ -126,7 +153,8 @@ mod test {
             print arr.len();
             print arr.get(0);
             print arr.get(1);
-        "#)?;
+        "#,
+        )?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 3);
             assert_eq!(entries[0].body, "2");
