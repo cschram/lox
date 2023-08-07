@@ -28,7 +28,7 @@ impl LoxState {
         key: &str,
         line: u32,
     ) -> LoxResult<LoxValue> {
-        let scope = match self.locals.get(&expr) {
+        let scope = match self.locals.get(expr) {
             Some(depth) => self
                 .env
                 .ancestor_scope(scope, *depth)

@@ -9,8 +9,8 @@ use super::{
 use std::{
     cell::RefCell,
     cmp::{Ord, Ordering},
-    hash::{Hash, Hasher},
     fmt,
+    hash::{Hash, Hasher},
 };
 
 thread_local! {
@@ -262,7 +262,7 @@ impl Expr {
             ExprKind::Assignment { name, value } => {
                 let val = value.eval(state, scope)?;
                 let scope =
-                    match state.locals.get(&self) {
+                    match state.locals.get(self) {
                         Some(distance) => state
                             .env
                             .ancestor_scope(scope, *distance)
