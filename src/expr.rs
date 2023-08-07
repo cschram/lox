@@ -6,7 +6,12 @@ use super::{
     state::LoxState,
     value::LoxValue,
 };
-use std::{cell::RefCell, fmt};
+use std::{
+    cell::RefCell,
+    cmp::{Ord, Ordering},
+    hash::{Hash, Hasher},
+    fmt,
+};
 
 thread_local! {
     static EXPR_COUNT: RefCell<usize> = const { RefCell::new(0) };
@@ -67,6 +72,26 @@ pub struct Expr {
     _id: usize,
 }
 
+impl Hash for Expr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self._id.hash(state);
+    }
+}
+
+impl Eq for Expr {}
+
+impl PartialOrd for Expr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self._id.cmp(&other._id))
+    }
+}
+
+impl Ord for Expr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self._id.cmp(&other._id)
+    }
+}
+
 impl Expr {
     pub fn new(kind: ExprKind) -> Self {
         Self {
@@ -97,7 +122,7 @@ impl Expr {
     }
 
     pub fn eval(&self, state: &mut LoxState, scope: ScopeHandle) -> LoxResult<LoxValue> {
-        println!("{self}");
+        // println!("{self}");
         match &self.kind {
             ExprKind::Literal(value) => Ok(LoxValue::from(value.clone())),
             ExprKind::Unary { operator, right } => match operator.kind {
@@ -237,7 +262,7 @@ impl Expr {
             ExprKind::Assignment { name, value } => {
                 let val = value.eval(state, scope)?;
                 let scope =
-                    match state.locals.get(&self._id) {
+                    match state.locals.get(&self) {
                         Some(distance) => state
                             .env
                             .ancestor_scope(scope, *distance)

@@ -1,7 +1,7 @@
 use crate::{error::*, expr::*, scanner::*, stmt::*};
 use std::collections::HashMap;
 
-pub type Locals = HashMap<usize, usize>;
+pub type Locals = HashMap<Expr, usize>;
 
 #[derive(PartialEq, Clone, Copy)]
 enum FunctionType {
@@ -153,6 +153,7 @@ impl Resolver {
     fn bind_expr(&mut self, expr: &Expr) -> LoxResult {
         match &expr.kind {
             ExprKind::Identifier(name) => {
+                println!("bind {expr}({}) on line {}", expr.id(), expr.line());
                 if !self.locals_stack.is_empty() && !self.is_initialized(&name.lexeme_str()) {
                     return Err(LoxError::Resolution(
                         "Attempted to resolve variable in its own initializer".into(),
@@ -193,6 +194,12 @@ impl Resolver {
             ExprKind::Unary { operator: _, right } => {
                 self.bind_expr(right)?;
             }
+            ExprKind::Get { left, .. } => {
+                self.bind_expr(left)?;
+            }
+            ExprKind::Set { object, .. } => {
+                self.bind_expr(object)?;
+            }
             ExprKind::This(_) => {
                 if self.current_class == ClassType::None {
                     return Err(LoxError::Resolution(
@@ -217,7 +224,6 @@ impl Resolver {
     fn resolve_local(&mut self, expr: &Expr, name: String) {
         for (i, frame) in self.locals_stack.iter().rev().enumerate() {
             if frame.contains_key(&name) {
-                println!("resolve {name} = {i}");
                 self.resolve(expr, i);
                 break;
             }
@@ -250,7 +256,7 @@ impl Resolver {
     }
 
     fn resolve(&mut self, expr: &Expr, depth: usize) {
-        self.locals.insert(expr.id(), depth);
+        self.locals.insert(expr.clone(), depth);
     }
 
     fn push(&mut self) {
@@ -258,19 +264,16 @@ impl Resolver {
     }
 
     fn pop(&mut self) {
-        println!("pop");
         self.locals_stack.pop();
     }
 
-    fn declare(&mut self, name: String, line: u32) {
-        println!("declare {name} on line {line}");
+    fn declare(&mut self, name: String, _line: u32) {
         if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, false);
         }
     }
 
-    fn define(&mut self, name: String, line: u32) {
-        println!("define {name} on line {line}");
+    fn define(&mut self, name: String, _line: u32) {
         if !self.locals_stack.is_empty() {
             self.peek_mut().insert(name, true);
         }
@@ -304,8 +307,8 @@ mod test {
     use super::*;
     use crate::{parser::*, test_scripts::*};
 
-    fn local_keys(locals: &Locals) -> Vec<&usize> {
-        let mut keys = locals.keys().collect::<Vec<&usize>>();
+    fn local_keys(locals: &Locals) -> Vec<&Expr> {
+        let mut keys = locals.keys().collect::<Vec<&Expr>>();
         keys.sort_unstable();
         keys
     }

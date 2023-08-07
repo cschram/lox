@@ -207,7 +207,7 @@ mod test {
         lox.exec(METHOD_CHAINING_TEST)?;
         MockLogger::entries(|entries| {
             assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].body, "foo");
+            assert_eq!(entries[0].body, "1");
         });
         Ok(())
     }

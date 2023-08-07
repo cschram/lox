@@ -28,13 +28,15 @@ impl LoxState {
         key: &str,
         line: u32,
     ) -> LoxResult<LoxValue> {
-        let scope = match self.locals.get(&expr.id()) {
+        let scope = match self.locals.get(&expr) {
             Some(depth) => self
                 .env
                 .ancestor_scope(scope, *depth)
                 .ok_or_else(|| LoxError::Runtime("Invalid scope".into(), line)),
             None => Ok(GLOBAL_SCOPE),
         }?;
+        let expr_id = expr.id();
+        println!("get {expr}({expr_id}) from scope {scope}");
         self.env
             .get(Some(scope), key)
             .ok_or_else(|| LoxError::Runtime(format!("Undefined variable \"{}\"", key), line))
